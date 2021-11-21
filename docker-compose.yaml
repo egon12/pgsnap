@@ -1,0 +1,10 @@
+version: "3"
+services:
+  db:
+    image: postgres:13.1-alpine
+    volumes:
+      - ./docker-postgres.sql:/docker-entrypoint-initdb.d/docker-postgres.sql
+    ports:
+      - "15432:5432"
+    environment:
+      - POSTGRES_HOST_AUTH_METHOD=trust
