@@ -137,6 +137,8 @@ func (s *Snap) unmarshalB(src []byte) pgproto3.BackendMessage {
 		o = &pgproto3.CommandComplete{}
 	case "EmptyQueryResponse":
 		o = &pgproto3.EmptyQueryResponse{}
+	case "NoData":
+		o = &pgproto3.NoData{}
 	default:
 		panic("unknown type: " + t.Type)
 	}
