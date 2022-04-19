@@ -95,7 +95,7 @@ func (s *Snap) listen() net.Listener {
 		s.t.Fatal("can't open port: " + err.Error())
 	}
 
-	s.addr = fmt.Sprintf("postgres://@%s/?sslmode=disable", s.l.Addr())
+	s.addr = fmt.Sprintf("postgres://user@%s/?sslmode=disable", s.l.Addr())
 
 	return s.l
 }
