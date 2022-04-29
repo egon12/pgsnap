@@ -19,6 +19,7 @@ type Snap struct {
 	l         net.Listener
 }
 
+// NewSnap will create snap
 func NewSnap(t *testing.T, postgreURL string) *Snap {
 	return NewSnapWithForceWrite(t, postgreURL, false)
 }
@@ -34,7 +35,7 @@ func NewSnapWithForceWrite(t *testing.T, url string, forceWrite bool) *Snap {
 
 	s.listen()
 
-	f, err := s.getFile()
+	script, err := s.getScript()
 	if s.shouldRunProxy(forceWrite, err) {
 		s.runProxy(url)
 		return s
@@ -44,7 +45,7 @@ func NewSnapWithForceWrite(t *testing.T, url string, forceWrite bool) *Snap {
 		s.t.Fatalf("can't open file \"%s\": %v", s.getFilename(), err)
 	}
 
-	s.runScript(f)
+	s.runFakePostgre(script)
 	return s
 }
 
@@ -106,6 +107,10 @@ func (s *Snap) shouldRunProxy(forceWrite bool, err error) bool {
 	}
 
 	if os.IsNotExist(err) {
+		return true
+	}
+
+	if errors.Is(EmptyScript, err) {
 		return true
 	}
 

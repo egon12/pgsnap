@@ -3,6 +3,7 @@ package pgsnap
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"net"
 	"os"
 	"time"
@@ -11,9 +12,22 @@ import (
 	"github.com/jackc/pgproto3/v2"
 )
 
-func (s *Snap) runScript(f *os.File) {
+var (
+	EmptyScript = errors.New("script is empty")
+)
+
+func (s *Snap) getScript() (*pgmock.Script, error) {
+	f, err := s.getFile()
+	if err != nil {
+		return nil, err
+	}
+
 	script := s.readScript(f)
-	s.runFakePostgre(script)
+	if len(script.Steps) < len(pgmock.AcceptUnauthenticatedConnRequestSteps())+1 {
+		return script, EmptyScript
+	}
+
+	return script, nil
 }
 
 func (s *Snap) runFakePostgre(script *pgmock.Script) {

@@ -3,6 +3,7 @@ package pgsnap
 import (
 	"context"
 	"database/sql"
+	"os"
 	"testing"
 
 	"github.com/jackc/pgx/v4"
@@ -32,6 +33,16 @@ func TestSnap_runProxy_pq(t *testing.T) {
 	defer s.Finish()
 
 	runPQ(t, s.Addr())
+}
+
+func TestSnap_runEmptyScript(t *testing.T) {
+	s := NewSnap(t, addr)
+	defer s.Finish()
+
+	runPQ(t, s.Addr())
+
+	// revert to empty file again
+	os.WriteFile("TestSnap_runEmptyScript.txt", []byte(""), os.ModePerm)
 }
 
 func runPQ(t *testing.T, addr string) {
