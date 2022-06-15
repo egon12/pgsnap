@@ -30,11 +30,11 @@ func (s *Snap) getScript() (*pgmock.Script, error) {
 	return script, nil
 }
 
-func (s *Snap) runFakePostgre(script *pgmock.Script) {
-	go s.acceptConnForScrpt(script)
+func (s *Snap) runFakePostgres(script *pgmock.Script) {
+	go s.acceptConnForScript(script)
 }
 
-func (s *Snap) acceptConnForScrpt(script *pgmock.Script) {
+func (s *Snap) acceptConnForScript(script *pgmock.Script) {
 	conn, err := s.l.Accept()
 	if err != nil {
 		s.errchan <- err

@@ -42,10 +42,10 @@ func NewSnapWithForceWrite(t *testing.T, url string, forceWrite bool) *Snap {
 	}
 
 	if err != nil {
-		s.t.Fatalf("can't open file \"%s\": %v", s.getFilename(), err)
+		s.t.Fatalf("can't open file %q: %s", s.getFilename(), err)
 	}
 
-	s.runFakePostgre(script)
+	s.runFakePostgres(script)
 	return s
 }
 
