@@ -12,7 +12,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const addr = "postgres://postgres@127.0.0.1:15432/?sslmode=disable"
+var addr = "postgres://postgres@127.0.0.1:15432/?sslmode=disable"
+
+func init() {
+	// set PGSNAPURL to override the postgres test address
+	if a := os.Getenv("PGSNAPURL"); a != "" {
+		addr = a
+	}
+}
 
 func TestSnap_runScript_pq(t *testing.T) {
 	s := NewSnap(t, addr)
