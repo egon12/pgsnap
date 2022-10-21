@@ -37,7 +37,8 @@ func NewSnapWithForceWrite(t testing.TB, url string, forceWrite bool) *Snap {
 
 	s.listen()
 
-	script, err := s.getScript()
+	script := NewScript(t)
+	pgxScript, err := script.Read()
 	if s.shouldRunProxy(forceWrite, err) {
 		s.runProxy(url)
 		return s
@@ -47,7 +48,8 @@ func NewSnapWithForceWrite(t testing.TB, url string, forceWrite bool) *Snap {
 		s.t.Fatalf("can't open file \"%s\": %v", s.getFilename(), err)
 	}
 
-	s.runFakePostgres(script)
+	server := NewServer(s.l, s.errchan, s.done)
+	server.Run(pgxScript)
 	return s
 }
 

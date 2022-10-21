@@ -4,21 +4,59 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
-	"net"
 	"os"
-	"time"
+	"strings"
+	"testing"
+	"unicode"
 
 	"github.com/jackc/pgmock"
 	"github.com/jackc/pgproto3/v2"
 )
 
+type (
+	script struct {
+		t    testing.TB
+		path string
+	}
+)
+
 var EmptyScript = errors.New("script is empty")
 
-func (s *Snap) getScript() (*pgmock.Script, error) {
-	f, err := s.getFile()
+func NewScript(t testing.TB) *script {
+	return &script{t: t}
+}
+
+// Path is the path to the script file.
+func (s *script) Path() string {
+	if s.path == "" {
+		n := s.t.Name()
+		n = strings.TrimPrefix(n, "Test")
+		n = strings.ReplaceAll(n, "/", "__")
+		n = strings.Map(func(r rune) rune {
+			switch {
+			case unicode.IsLetter(r) || unicode.IsNumber(r):
+				return r
+			default:
+				return '_'
+			}
+		}, n)
+		n = strings.ToLower(n)
+
+		s.path = "pgsnap_" + n + ".txt"
+	}
+	return s.path
+}
+
+func (s *script) ReadOnlyFile() (*os.File, error) {
+	return os.OpenFile(s.Path(), os.O_RDONLY, 0)
+}
+
+func (s *script) Read() (*pgmock.Script, error) {
+	f, err := s.ReadOnlyFile()
 	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
 
 	script := s.readScript(f)
 	if len(script.Steps) < len(pgmock.AcceptUnauthenticatedConnRequestSteps())+1 {
@@ -28,63 +66,7 @@ func (s *Snap) getScript() (*pgmock.Script, error) {
 	return script, nil
 }
 
-func (s *Snap) runFakePostgres(script *pgmock.Script) {
-	go s.acceptConnForScript(script)
-}
-
-func (s *Snap) acceptConnForScript(script *pgmock.Script) {
-	conn, err := s.l.Accept()
-	if err != nil {
-		s.errchan <- err
-		return
-	}
-	defer conn.Close()
-
-	if err = conn.SetDeadline(time.Now().Add(time.Second)); err != nil {
-		s.errchan <- err
-		return
-	}
-
-	be := pgproto3.NewBackend(pgproto3.NewChunkReader(conn), conn)
-
-	if err := script.Run(be); err != nil {
-		s.waitTilSync(be)
-
-		s.sendError(be, err)
-
-		conn.(*net.TCPConn).SetLinger(0)
-		s.errchan <- err
-		return
-	}
-
-	s.done <- struct{}{}
-}
-
-func (s *Snap) waitTilSync(be *pgproto3.Backend) {
-	for i := 0; i < 10; i++ {
-		msg, err := be.Receive()
-		if err != nil {
-			continue
-		}
-
-		_, ok := msg.(*pgproto3.Sync)
-		if ok {
-			break
-		}
-	}
-}
-
-func (s *Snap) sendError(be *pgproto3.Backend, err error) {
-	be.Send(&pgproto3.ErrorResponse{
-		Severity:            "ERROR",
-		SeverityUnlocalized: "ERROR",
-		Code:                "99999",
-		Message:             "pgsnap:\n" + err.Error(),
-	})
-	be.Send(&pgproto3.ReadyForQuery{'I'})
-}
-
-func (s *Snap) readScript(f *os.File) *pgmock.Script {
+func (s *script) readScript(f *os.File) *pgmock.Script {
 	script := &pgmock.Script{
 		Steps: pgmock.AcceptUnauthenticatedConnRequestSteps(),
 	}
@@ -122,7 +104,7 @@ func (s *Snap) readScript(f *os.File) *pgmock.Script {
 	return script
 }
 
-func (s *Snap) unmarshalB(src []byte) pgproto3.BackendMessage {
+func (s *script) unmarshalB(src []byte) pgproto3.BackendMessage {
 	t := struct {
 		Type string
 	}{}
@@ -163,7 +145,7 @@ func (s *Snap) unmarshalB(src []byte) pgproto3.BackendMessage {
 	return o
 }
 
-func (s *Snap) unmarshalF(src []byte) pgproto3.FrontendMessage {
+func (s *script) unmarshalF(src []byte) pgproto3.FrontendMessage {
 	t := struct {
 		Type string
 	}{}
