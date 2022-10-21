@@ -12,7 +12,7 @@ import (
 )
 
 type Snap struct {
-	t         *testing.T
+	t         testing.TB
 	addr      string
 	errchan   chan error
 	msgchan   chan string
@@ -22,12 +22,12 @@ type Snap struct {
 }
 
 // NewSnap will create snap
-func NewSnap(t *testing.T, postgreURL string) *Snap {
+func NewSnap(t testing.TB, postgreURL string) *Snap {
 	return NewSnapWithForceWrite(t, postgreURL, false)
 }
 
 // NewSnapWithForceWrite function  
-func NewSnapWithForceWrite(t *testing.T, url string, forceWrite bool) *Snap {
+func NewSnapWithForceWrite(t testing.TB, url string, forceWrite bool) *Snap {
 	s := &Snap{
 		t:       t,
 		errchan: make(chan error, 100),
