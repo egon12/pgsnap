@@ -12,9 +12,7 @@ import (
 	"github.com/jackc/pgproto3/v2"
 )
 
-var (
-	EmptyScript = errors.New("script is empty")
-)
+var EmptyScript = errors.New("script is empty")
 
 func (s *Snap) getScript() (*pgmock.Script, error) {
 	f, err := s.getFile()
@@ -30,11 +28,11 @@ func (s *Snap) getScript() (*pgmock.Script, error) {
 	return script, nil
 }
 
-func (s *Snap) runFakePostgre(script *pgmock.Script) {
-	go s.acceptConnForScrpt(script)
+func (s *Snap) runFakePostgres(script *pgmock.Script) {
+	go s.acceptConnForScript(script)
 }
 
-func (s *Snap) acceptConnForScrpt(script *pgmock.Script) {
+func (s *Snap) acceptConnForScript(script *pgmock.Script) {
 	conn, err := s.l.Accept()
 	if err != nil {
 		s.errchan <- err
@@ -42,26 +40,17 @@ func (s *Snap) acceptConnForScrpt(script *pgmock.Script) {
 	}
 	defer conn.Close()
 
-	err = conn.SetDeadline(time.Now().Add(time.Second))
-	if err != nil {
+	if err = conn.SetDeadline(time.Now().Add(time.Second)); err != nil {
 		s.errchan <- err
 		return
 	}
 
 	be := pgproto3.NewBackend(pgproto3.NewChunkReader(conn), conn)
 
-	err = script.Run(be)
-	if err != nil {
+	if err := script.Run(be); err != nil {
 		s.waitTilSync(be)
 
 		s.sendError(be, err)
-
-		be.Send(&pgproto3.ErrorResponse{
-			Severity:            "ERROR",
-			SeverityUnlocalized: "ERROR",
-			Message:             err.Error(),
-		})
-		be.Send(&pgproto3.ReadyForQuery{'I'})
 
 		conn.(*net.TCPConn).SetLinger(0)
 		s.errchan <- err
@@ -89,7 +78,8 @@ func (s *Snap) sendError(be *pgproto3.Backend, err error) {
 	be.Send(&pgproto3.ErrorResponse{
 		Severity:            "ERROR",
 		SeverityUnlocalized: "ERROR",
-		Message:             "pgsnap: diff:\n" + err.Error(),
+		Code:                "99999",
+		Message:             "pgsnap:\n" + err.Error(),
 	})
 	be.Send(&pgproto3.ReadyForQuery{'I'})
 }

@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"testing"
 	"time"
+	"unicode"
 )
 
 type Snap struct {
@@ -24,7 +26,7 @@ func NewSnap(t *testing.T, postgreURL string) *Snap {
 	return NewSnapWithForceWrite(t, postgreURL, false)
 }
 
-// NewSnap
+// NewSnapWithForceWrite function  
 func NewSnapWithForceWrite(t *testing.T, url string, forceWrite bool) *Snap {
 	s := &Snap{
 		t:       t,
@@ -45,12 +47,12 @@ func NewSnapWithForceWrite(t *testing.T, url string, forceWrite bool) *Snap {
 		s.t.Fatalf("can't open file \"%s\": %v", s.getFilename(), err)
 	}
 
-	s.runFakePostgre(script)
+	s.runFakePostgres(script)
 	return s
 }
 
 func (s *Snap) Finish() {
-	err := s.Wait()
+	err := s.WaitFor(5 * time.Second)
 	if err != nil {
 		s.t.Helper()
 		s.t.Error(err)
@@ -61,13 +63,9 @@ func (s *Snap) Addr() string {
 	return s.addr
 }
 
-func (s *Snap) Wait() error {
-	return s.WaitFor(5 * time.Second)
-}
-
 func (s *Snap) WaitFor(d time.Duration) error {
 	if s.writeMode {
-		s.done <- struct{}{}
+		close(s.done)
 	}
 
 	select {
@@ -85,7 +83,19 @@ func (s *Snap) getFile() (*os.File, error) {
 }
 
 func (s *Snap) getFilename() string {
-	return s.t.Name() + ".txt"
+	n := s.t.Name()
+	n = strings.TrimPrefix(n, "Test")
+	n = strings.ReplaceAll(n, "/", "__")
+	n = strings.Map(func(r rune) rune {
+		switch {
+		case unicode.IsLetter(r) || unicode.IsNumber(r):
+			return r
+		default:
+			return '_'
+		}
+	}, n)
+	n = strings.ToLower(n)
+	return "pgsnap_" + n + ".txt"
 }
 
 func (s *Snap) listen() net.Listener {
