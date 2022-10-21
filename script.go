@@ -136,6 +136,8 @@ func (s *script) unmarshalB(src []byte) pgproto3.BackendMessage {
 		o = &pgproto3.EmptyQueryResponse{}
 	case "NoData":
 		o = &pgproto3.NoData{}
+	case "ErrorResponse":
+		o = &pgproto3.ErrorResponse{}
 	default:
 		panic("unknown type: " + t.Type)
 	}
