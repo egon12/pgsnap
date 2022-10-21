@@ -35,6 +35,13 @@ func TestSnap_runProxy_pq(t *testing.T) {
 	runPQ(t, s.Addr())
 }
 
+func TestSnap_runProxy_pgx(t *testing.T) {
+	s := NewSnapWithForceWrite(t, addr, true)
+	defer s.Finish()
+
+	runPGX(t, s.Addr())
+}
+
 func TestSnap_runEmptyScript(t *testing.T) {
 	s := NewSnap(t, addr)
 	defer s.Finish()
@@ -69,7 +76,7 @@ func runPGX(t *testing.T, addr string) {
 	err = db.Ping(context.TODO())
 	require.NoError(t, err)
 
-	_, err = db.Query(context.TODO(), "select id from mytable limit  $1", 7)
+	_, err = db.Query(context.TODO(), "select id from mytable limit $1", 7)
 	require.NoError(t, err)
 }
 

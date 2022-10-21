@@ -104,7 +104,18 @@ func (s *Snap) readScript(f *os.File) *pgmock.Script {
 			script.Steps = append(script.Steps, pgmock.SendMessage(msg))
 		case 'F':
 			msg := s.unmarshalF(b[1:])
-			script.Steps = append(script.Steps, pgmock.ExpectMessage(msg))
+
+			switch m := msg.(type) {
+			case *pgproto3.Parse:
+				script.Steps = append(script.Steps, &expectParseMessage{want: m})
+			case *pgproto3.Describe:
+				script.Steps = append(script.Steps, &expectDescribeMessage{want: m})
+			case *pgproto3.Bind:
+				script.Steps = append(script.Steps, &expectBindMessage{want: m})
+			default:
+				script.Steps = append(script.Steps, pgmock.ExpectMessage(m))
+			}
+
 		}
 	}
 
@@ -116,7 +127,7 @@ func (s *Snap) unmarshalB(src []byte) pgproto3.BackendMessage {
 		Type string
 	}{}
 
-	json.Unmarshal(src, &t)
+	_ = json.Unmarshal(src, &t)
 
 	var o pgproto3.BackendMessage
 
