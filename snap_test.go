@@ -3,6 +3,7 @@ package pgsnap
 import (
 	"context"
 	"database/sql"
+	"io/ioutil"
 	"os"
 	"testing"
 
@@ -12,7 +13,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const addr = "postgres://postgres@127.0.0.1:15432/?sslmode=disable"
+const addr = ""
+
+func TestMain(m *testing.M) {
+	ctx := context.Background()
+
+	db, err := pgx.Connect(ctx, addr)
+	if err != nil {
+		panic(err)
+	}
+
+	b, err := ioutil.ReadFile("docker-postgres.sql")
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = db.Exec(ctx, string(b))
+	if err != nil {
+		panic(err)
+	}
+
+	m.Run()
+	db.Exec(ctx, "drop table mytable")
+}
 
 func TestSnap_runScript_pq(t *testing.T) {
 	s := NewSnap(t, addr)
