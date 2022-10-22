@@ -98,19 +98,23 @@ func (e *expectBindMessage) compare(msg pgproto3.FrontendMessage) error {
 		)
 	}
 
-	if !reflect.DeepEqual(m.Parameters, e.want.Parameters) {
-		return fmt.Errorf(
-			"msg => Parameters: %v, want => Parameters: %v",
-			m.Parameters,
-			e.want.Parameters,
-		)
-	}
-
 	if !reflect.DeepEqual(m.ResultFormatCodes, e.want.ResultFormatCodes) {
 		return fmt.Errorf(
 			"msg => ResultFormatCodes: %v, want => ResultFormatCodes: %v",
 			m.ResultFormatCodes,
 			e.want.ResultFormatCodes,
+		)
+	}
+
+	if !reflect.DeepEqual(m.Parameters, e.want.Parameters) {
+		if len(m.Parameters) == 0 && len(e.want.Parameters) == 0 {
+			return nil
+		}
+
+		return fmt.Errorf(
+			"msg => Parameters: %v, want => Parameters: %v",
+			m.Parameters,
+			e.want.Parameters,
 		)
 	}
 

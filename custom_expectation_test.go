@@ -117,6 +117,12 @@ func Test_expectBindMessage_compare(t *testing.T) {
 			wantErr: nil,
 		},
 		{
+			name:    "success when Parameters nil and empty",
+			field:   &pgproto3.Bind{Parameters: [][]byte{}},
+			arg:     &pgproto3.Bind{Parameters: nil},
+			wantErr: nil,
+		},
+		{
 			name:    "different in type",
 			field:   &pgproto3.Bind{},
 			arg:     &pgproto3.Parse{},
