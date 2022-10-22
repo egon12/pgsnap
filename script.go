@@ -171,6 +171,8 @@ func (s *script) unmarshalF(src []byte) pgproto3.FrontendMessage {
 		o = &pgproto3.Bind{}
 	case "Execute":
 		o = &pgproto3.Execute{}
+	case "Terminate":
+		o = &pgproto3.Terminate{}
 	default:
 		panic("unknown type: " + t.Type)
 	}
