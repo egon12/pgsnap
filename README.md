@@ -78,8 +78,10 @@ graph LR
 ```
 
 ### Known Bugs
-For now, we only support `github.com/lib/pq`. This caused by different implementation in 
-creating transaction statement. In `lib/pq` transaction is not named. But in jackc/pgx,
-the transaction is named by incremental singleton value. So there are possibility 
-first run and second run have different value. Depends on how many query already run 
-in the test process.
+- [x] ~~For now, we only support `github.com/lib/pq`. This caused by different implementation in 
+      creating transaction statement. In `lib/pq` transaction is not named. But in jackc/pgx,
+      the transaction is named by incremental singleton value. So there are possibility 
+      first run and second run have different value. Depends on how many query already run 
+      he test process.~~
+- [ ] When we don't interact with database in test it will have empty script.
+- [ ] Empty script not working well
