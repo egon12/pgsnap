@@ -54,13 +54,21 @@ func (s *Snap) streamBEtoFE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io.
 			continue
 		}
 
-		out.Write([]byte("F "))
-		b, _ := json.Marshal(msg)
-		out.Write(b)
-		out.Write([]byte("\n"))
+		b, err := json.Marshal(msg)
+		if err != nil {
+			s.t.Errorf("pgsnap: cannot marshal: %T: %+v", msg, msg)
+		}
+		if len(b) > 0 {
+			b = append([]byte{'F', ' '}, b...)
+			b = append(b, []byte("\n")...)
+			_, _ = out.Write(b)
+		}
 
 		if msg != nil {
-			fe.Send(msg)
+			err = fe.Send(msg)
+			if err != nil {
+				s.t.Errorf("pgsnap: cannot forward to postgre: %T: %+v", msg, msg)
+			}
 		}
 	}
 }
@@ -73,13 +81,21 @@ func (s *Snap) streamFEtoBE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io.
 			continue
 		}
 
-		out.Write([]byte("\nB "))
-		b, _ := json.Marshal(msg)
-		out.Write(b)
-		out.Write([]byte("\n"))
+		b, err := json.Marshal(msg)
+		if err != nil {
+			s.t.Errorf("pgsnap: cannot marshal: %T: %+v", msg, msg)
+		}
+		if len(b) > 0 {
+			b = append([]byte{'B', ' '}, b...)
+			b = append(b, []byte("\n")...)
+			_, _ = out.Write(b)
+		}
 
 		if msg != nil {
 			be.Send(msg)
+			if err != nil {
+				s.t.Errorf("pgsnap: cannot forward to client: %T: %+v", msg, msg)
+			}
 		}
 	}
 }
