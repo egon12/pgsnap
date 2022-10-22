@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -109,7 +110,10 @@ func (s *script) unmarshalB(src []byte) pgproto3.BackendMessage {
 		Type string
 	}{}
 
-	_ = json.Unmarshal(src, &t)
+	if err := json.Unmarshal(src, &t); err != nil {
+		s.t.Fatalf("unmarshal backend message failed: %v\nsource: %s", err, string(src))
+		return nil
+	}
 
 	var o pgproto3.BackendMessage
 
@@ -139,10 +143,14 @@ func (s *script) unmarshalB(src []byte) pgproto3.BackendMessage {
 	case "ErrorResponse":
 		o = &pgproto3.ErrorResponse{}
 	default:
-		panic("unknown type: " + t.Type)
+		s.t.Fatalf("unknown backend type: " + t.Type)
+		return nil
 	}
 
-	_ = json.Unmarshal(src, o)
+	if err := json.Unmarshal(src, o); err != nil {
+		s.t.Fatalf("unmarshal backend message to %T failed\nsource: %s", o, string(src))
+		return nil
+	}
 
 	return o
 }
@@ -152,7 +160,9 @@ func (s *script) unmarshalF(src []byte) pgproto3.FrontendMessage {
 		Type string
 	}{}
 
-	json.Unmarshal(src, &t)
+	if err := json.Unmarshal(src, &t); err != nil {
+		s.t.Fatalf("unmarshal frontend message failed: %v\nsource: %s", err, string(src))
+	}
 
 	var o pgproto3.FrontendMessage
 
@@ -177,7 +187,10 @@ func (s *script) unmarshalF(src []byte) pgproto3.FrontendMessage {
 		panic("unknown type: " + t.Type)
 	}
 
-	_ = json.Unmarshal(src, o)
+	if err := json.Unmarshal(src, o); err != nil {
+		s.t.Fatalf("unmarshal backend message to %T failed\nsource: %s", o, string(src))
+		return nil
+	}
 
 	return o
 }
