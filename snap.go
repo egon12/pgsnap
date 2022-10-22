@@ -38,8 +38,13 @@ func NewSnapWithForceWrite(t testing.TB, url string, forceWrite bool) *Snap {
 	s.listen()
 
 	script := NewScript(t)
+	if forceWrite {
+		s.runProxy(url)
+		return s
+	}
+
 	pgxScript, err := script.Read()
-	if s.shouldRunProxy(forceWrite, err) {
+	if s.shouldRunProxy(err) {
 		s.runProxy(url)
 		return s
 	}
@@ -113,11 +118,7 @@ func (s *Snap) listen() net.Listener {
 	return s.l
 }
 
-func (s *Snap) shouldRunProxy(forceWrite bool, err error) bool {
-	if forceWrite == true {
-		return true
-	}
-
+func (s *Snap) shouldRunProxy(err error) bool {
 	if os.IsNotExist(err) {
 		return true
 	}

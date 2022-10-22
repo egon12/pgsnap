@@ -66,7 +66,7 @@ func (s *script) Read() (*pgmock.Script, error) {
 	return script, nil
 }
 
-func (s *script) readScript(f *os.File) *pgmock.Script {
+func (s *script) readScript(f io.Reader) *pgmock.Script {
 	script := &pgmock.Script{
 		Steps: pgmock.AcceptUnauthenticatedConnRequestSteps(),
 	}
