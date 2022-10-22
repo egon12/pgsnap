@@ -23,7 +23,8 @@ type Snap struct {
 
 // NewSnap will create snap
 func NewSnap(t testing.TB, postgreURL string) *Snap {
-	return NewSnapWithForceWrite(t, postgreURL, false)
+	forceWrite := os.Getenv("PGSNAP_FORCE_WRITE") == "true"
+	return NewSnapWithForceWrite(t, postgreURL, forceWrite)
 }
 
 // NewSnapWithForceWrite function  

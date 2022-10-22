@@ -39,17 +39,6 @@ func TestDB_GetProduct(t *testing.T) {
 
 ```
 
-## Why we need this?
-The best way to test PostgreSQL is by using real DB. Why, usually what we pass are queries.  And the one that can predict queries is the DB itself. But it comes with a large baggage.
-Using DB as testing is quite hard, because we need to maintain the DB content while we 
-do the testing.
-
-The snapshot testing is inspired by snapshot testing UI using jest. In jest, to create the 
-code at first we will use real UI (browser). And then when we do test, we will create some 
-snapshot (tree structure of the UI). And every time we do some test, it will try to matched
-with snapshot that we have.
-
-
 ## How does it work?
 When we create pgsnap, we will create a postgresql proxy, that will be used to get message that 
 send/receive between app and postgres. At first run, or when we don't have the snapshot file,
@@ -58,7 +47,7 @@ it will create the snapshot file and save it.
 At the second run the proxy would not connect to the real postgres server, and instead read
 the snapshot file and response accordingly to the app.
 
-### First run
+#### First run
 ```mermaid
 graph LR
 
@@ -68,7 +57,7 @@ graph LR
     
 ```
 
-### Second run (and run in CI/CD environment)
+#### Second run (and run in CI/CD environment)
 ```mermaid
 graph LR
 
@@ -76,6 +65,27 @@ graph LR
     snapshot_file --> pgsnap.Proxy --> TestApp
     
 ```
+
+#### Refresh snapshot file
+To recreate the `snapshot_file` you can delete the snapshot file run the test with
+environment variable `PGSNAP_FORCE_WRITE=true` like below
+
+```sh
+PGSNAP_FORCE_WRITE=true go test
+```
+
+## Why we need this?
+The best way to test PostgreSQL is by using real DB. Why? because the one that can predict 
+correctness in queries are the DB itself. But it comes with a large baggage.
+Using DB as testing is quite hard, because we need to maintain the DB content while we 
+do the testing.
+
+The snapshot testing is inspired by snapshot testing UI using jest. In jest, to create the 
+code at first we will use real UI (browser). And then when we do test, we will create some 
+snapshot (tree structure of the UI). And every time we do some test, it will try to matched
+with snapshot that we have.
+
+
 
 ### Known Bugs
 - [x] ~~For now, we only support `github.com/lib/pq`. This caused by different implementation in 
