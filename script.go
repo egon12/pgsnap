@@ -183,7 +183,22 @@ func (s *script) unmarshalF(src []byte) pgproto3.FrontendMessage {
 		o = &pgproto3.Execute{}
 	case "Terminate":
 		o = &pgproto3.Terminate{}
+	case "Close":
+		o = &pgproto3.Close{}
+	case "Flush":
+		o = &pgproto3.Flush{}
+	case "CopyData":
+		o = &pgproto3.CopyData{}
+	case "CopyDone":
+		o = &pgproto3.CopyDone{}
+	case "CopyFail":
+		o = &pgproto3.CopyFail{}
+	case "CancelRequest":
+		o = &pgproto3.CancelRequest{}
 	default:
+		//
+		// gssEncRequest  GSSEncRequest
+		// sslRequest     SSLRequest
 		panic("unknown type: " + t.Type)
 	}
 
