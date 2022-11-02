@@ -124,6 +124,8 @@ func (s *script) unmarshalB(src []byte) pgproto3.BackendMessage {
 		o = &pgproto3.BackendKeyData{}
 	case "ParseComplete":
 		o = &pgproto3.ParseComplete{}
+	case "ParameterStatus":
+		o = &pgproto3.ParameterStatus{}
 	case "ParameterDescription":
 		o = &pgproto3.ParameterDescription{}
 	case "RowDescription":
@@ -142,6 +144,27 @@ func (s *script) unmarshalB(src []byte) pgproto3.BackendMessage {
 		o = &pgproto3.NoData{}
 	case "ErrorResponse":
 		o = &pgproto3.ErrorResponse{}
+	case "CloseComplete":
+		o = &pgproto3.CloseComplete{}
+	case "CopyBothResponse":
+		o = &pgproto3.CopyBothResponse{}
+	case "CopyData":
+		o = &pgproto3.CopyData{}
+	case "CopyInResponse":
+		o = &pgproto3.CopyInResponse{}
+	case "CopyOutResponse":
+		o = &pgproto3.CopyOutResponse{}
+	case "CopyDone":
+		o = &pgproto3.CopyDone{}
+	case "FunctionCallResponse":
+		o = &pgproto3.FunctionCallResponse{}
+	case "NoticeResponse":
+		o = &pgproto3.NoticeResponse{}
+	case "NotificationResponse":
+		o = &pgproto3.NotificationResponse{}
+	case "PortalSuspended":
+		o = &pgproto3.PortalSuspended{}
+
 	default:
 		s.t.Fatalf("unknown backend type: " + t.Type)
 		return nil
