@@ -4,18 +4,20 @@ import (
 	"context"
 	"testing"
 
-	"github.com/jackc/pgconn"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 )
 
 // wrong query, should not cause a panic.
 func Test_error_case(t *testing.T) {
 	s := NewSnap(t, addr)
+	defer s.Finish()
 
 	ctx := context.Background()
 
 	conn, _ := pgx.Connect(ctx, s.Addr())
+	defer conn.Close(ctx)
 
 	t.Run("non_existent_table", func(t *testing.T) {
 		_, err := conn.Query(ctx, "SELECT * FROM non_existing_table WHERE id = $1", 1)

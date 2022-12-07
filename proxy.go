@@ -23,8 +23,16 @@ func (s *Snap) runProxy(url string) {
 	if err != nil {
 		s.t.Fatalf("can't connect to db %s: %v", url, err)
 	}
+	err = db.Ping(context.TODO())
+	if err != nil {
+		s.t.Fatalf("can't pint to db %s: %v", url, err)
+	}
 
-	go s.acceptConnForProxy(db, out)
+	go func() {
+		for {
+			s.acceptConnForProxy(db, out)
+		}
+	}()
 }
 
 func (s *Snap) acceptConnForProxy(db *pgx.Conn, out io.Writer) {
@@ -32,6 +40,9 @@ func (s *Snap) acceptConnForProxy(db *pgx.Conn, out io.Writer) {
 	if err != nil {
 		s.errchan <- err
 		return
+	}
+	if s.isDebug {
+		s.t.Log("accepting connection")
 	}
 
 	be := s.prepareBackend(conn)
@@ -50,6 +61,7 @@ func (s *Snap) streamBEtoFE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io.
 	for {
 		msg, err := be.Receive()
 		if err != nil {
+			s.t.Errorf("pgsnap: BE cannot receive")
 			s.errchan <- err
 			continue
 		}
@@ -63,22 +75,41 @@ func (s *Snap) streamBEtoFE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io.
 			b = append(b, []byte("\n")...)
 			_, _ = out.Write(b)
 		}
+		if s.isDebug {
+			s.t.Logf("pgsnap: %T: %+v", msg, msg)
+		}
 
 		if msg != nil {
+			if s.isDebug {
+				s.t.Logf("pgsnap: sending message: %+v", msg)
+			}
 			err = fe.Send(msg)
+			if s.isDebug {
+				s.t.Logf("pgsnap: sending message done err: %v", err)
+			}
 			if err != nil {
 				s.t.Errorf("pgsnap: cannot forward to postgre: %T: %+v", msg, msg)
 			}
+		}
+		if s.isDebug {
+			s.t.Log("pgsnap: fe receiving2")
 		}
 	}
 }
 
 func (s *Snap) streamFEtoBE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io.Writer) {
 	for {
+		if s.isDebug {
+			s.t.Log("pgsnap: fe receiving")
+		}
 		msg, err := fe.Receive()
 		if err != nil {
+			s.t.Errorf("pgsnap: FE cannot receive")
 			s.errchan <- err
 			continue
+		}
+		if s.isDebug {
+			s.t.Logf("pgsnap: message receive%T: %+v", msg, msg)
 		}
 
 		b, err := json.Marshal(msg)
@@ -89,6 +120,9 @@ func (s *Snap) streamFEtoBE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io.
 			b = append([]byte{'B', ' '}, b...)
 			b = append(b, []byte("\n")...)
 			_, _ = out.Write(b)
+		}
+		if s.isDebug {
+			s.t.Logf("pgsnap: %T: %+v", msg, msg)
 		}
 
 		if msg != nil {

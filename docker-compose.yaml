@@ -1,7 +1,7 @@
 version: "3"
 services:
   db:
-    image: postgres:13.1-alpine
+    image: postgres
     volumes:
       - ./docker-postgres.sql:/docker-entrypoint-initdb.d/docker-postgres.sql
     ports:

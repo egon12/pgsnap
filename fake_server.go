@@ -1,6 +1,7 @@
 package pgsnap
 
 import (
+	"log"
 	"net"
 	"time"
 
@@ -73,12 +74,17 @@ func (s *server) waitTilSync(be *pgproto3.Backend) {
 	}
 }
 
-func (s *server) sendError(be *pgproto3.Backend, err error) {
-	be.Send(&pgproto3.ErrorResponse{
+func (s *server) sendError(be *pgproto3.Backend, postgresError error) {
+	err := be.Send(&pgproto3.ErrorResponse{
 		Severity:            "ERROR",
 		SeverityUnlocalized: "ERROR",
 		Code:                "99999",
-		Message:             "pgsnap:\n" + err.Error(),
+		Message:             "pgsnap:\n" + postgresError.Error(),
 	})
-	be.Send(&pgproto3.ReadyForQuery{TxStatus: 'I'})
+	if err != nil {
+		log.Printf("failed send be error (%s) caused by %s", err, postgresError)
+	}
+
+	// ignore the error
+	_ = be.Send(&pgproto3.ReadyForQuery{TxStatus: 'I'})
 }

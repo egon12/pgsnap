@@ -19,6 +19,7 @@ type Snap struct {
 	done      chan struct{}
 	writeMode bool
 	l         net.Listener
+	isDebug   bool
 }
 
 // NewSnap will create snap
@@ -34,11 +35,12 @@ func NewSnapWithForceWrite(t testing.TB, url string, forceWrite bool) *Snap {
 		errchan: make(chan error, 100),
 		msgchan: make(chan string, 100),
 		done:    make(chan struct{}, 1),
+		isDebug: os.Getenv("PGSNAP_DEBUG") == "true",
 	}
 
 	s.listen()
 
-	script := NewScript(t)
+	script := NewScript(t, s.getFilename())
 	if forceWrite {
 		s.runProxy(url)
 		return s
@@ -84,10 +86,6 @@ func (s *Snap) WaitFor(d time.Duration) error {
 	case <-s.done:
 		return nil
 	}
-}
-
-func (s *Snap) getFile() (*os.File, error) {
-	return os.Open(s.getFilename())
 }
 
 func (s *Snap) getFilename() string {

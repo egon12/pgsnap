@@ -6,13 +6,13 @@ import (
 	"os"
 	"testing"
 
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
 	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-const addr = "postgres://postgres@127.0.0.1:15432/?sslmode=disable"
+const addr = "postgres://postgres@127.0.0.1:9000/?sslmode=disable"
 
 func TestSnap_runScript_pq(t *testing.T) {
 	s := NewSnap(t, addr)
