@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const addr = "postgres://postgres@127.0.0.1:9000/?sslmode=disable"
+const addr = "postgres://postgres@127.0.0.1:15432/?sslmode=disable"
 
 func TestSnap_runScript_pq(t *testing.T) {
 	s := NewSnap(t, addr)
