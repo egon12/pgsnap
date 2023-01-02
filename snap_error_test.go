@@ -2,7 +2,9 @@ package pgsnap
 
 import (
 	"context"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -39,4 +41,41 @@ func Test_error_case(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, rows.Next())
 	})
+}
+
+func Test_if_not_accept_should_throw_timeout(t *testing.T) {
+	tb := newFakeTB(t)
+
+	s := NewSnapWithConfig(tb, addr, Config{
+		TestTimeout: 10 * time.Millisecond,
+	})
+	defer s.Finish()
+
+	time.Sleep(100 * time.Millisecond)
+
+	assert.True(t, tb.FailNowCalled)
+}
+
+type fakeTB struct {
+	testing.TB
+	ErrorMessages []string
+	FailNowCalled bool
+}
+
+func newFakeTB(t testing.TB) *fakeTB {
+	return &fakeTB{
+		TB: t,
+	}
+}
+
+func (f *fakeTB) Error(args ...interface{}) {
+	f.ErrorMessages = append(f.ErrorMessages, fmt.Sprintln(args...))
+}
+
+func (f *fakeTB) Errorf(format string, args ...interface{}) {
+	f.ErrorMessages = append(f.ErrorMessages, fmt.Sprintf(format, args...))
+}
+
+func (f *fakeTB) FailNow() {
+	f.FailNowCalled = true
 }

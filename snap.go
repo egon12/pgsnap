@@ -12,39 +12,65 @@ import (
 )
 
 type Snap struct {
-	t         testing.TB
-	addr      string
-	errchan   chan error
-	msgchan   chan string
-	done      chan struct{}
-	writeMode bool
-	l         net.Listener
-	isDebug   bool
+	t       testing.TB
+	addr    string
+	errchan chan error
+	msgchan chan string
+	done    chan struct{}
+	l       net.Listener
+	isDebug bool
+}
+
+type Config struct {
+	// Default 5s
+	TestTimeout time.Duration
+
+	// Force to create proxy and connect to real postgres server
+	ForceWrite bool
+
+	// Debug if true it will print more verbose
+	Debug bool
 }
 
 // NewSnap will create snap
 func NewSnap(t testing.TB, postgreURL string) *Snap {
-	forceWrite := os.Getenv("PGSNAP_FORCE_WRITE") == "true"
-	return NewSnapWithForceWrite(t, postgreURL, forceWrite)
+	return NewSnapWithConfig(t, postgreURL, Config{
+		ForceWrite:  os.Getenv("PGSNAP_FORCE_WRITE") == "true",
+		Debug:       os.Getenv("PGSNAP_DEBUG") == "true",
+		TestTimeout: 5 * time.Second,
+	})
 }
 
-// NewSnapWithForceWrite function  
+// Deprecated
+// NewSnapWithForceWrite function
 func NewSnapWithForceWrite(t testing.TB, url string, forceWrite bool) *Snap {
+	return NewSnapWithConfig(t, url, Config{
+		ForceWrite:  forceWrite,
+		Debug:       os.Getenv("PGSNAP_DEBUG") == "true",
+		TestTimeout: 5 * time.Second,
+	})
+}
+
+// Make it private first, because we still design the api first
+func NewSnapWithConfig(t testing.TB, url string, cfg Config) *Snap {
 	s := &Snap{
 		t:       t,
 		errchan: make(chan error, 100),
 		msgchan: make(chan string, 100),
 		done:    make(chan struct{}, 1),
-		isDebug: os.Getenv("PGSNAP_DEBUG") == "true",
+		isDebug: cfg.Debug,
 	}
+
+	s.setFailAfter(cfg.TestTimeout)
 
 	s.listen()
 
-	script := NewScript(t, s.getFilename())
-	if forceWrite {
+	if cfg.ForceWrite {
 		s.runProxy(url)
 		return s
 	}
+
+	script := NewScript(t, s.getFilename())
 
 	pgxScript, err := script.Read()
 	if s.shouldRunProxy(err) {
@@ -58,34 +84,31 @@ func NewSnapWithForceWrite(t testing.TB, url string, forceWrite bool) *Snap {
 
 	server := NewServer(s.l, s.errchan, s.done)
 	server.Run(pgxScript)
+
 	return s
 }
 
-func (s *Snap) Finish() {
-	err := s.WaitFor(5 * time.Second)
-	if err != nil {
-		s.t.Helper()
-		s.t.Error(err)
-	}
+// setFaileAfter will call (*testing.T).Fatalf after timeout
+func (s *Snap) setFailAfter(timeout time.Duration) {
+	go func() {
+		select {
+		case <-time.After(timeout):
+			s.t.Errorf("pgsnap timeout after %v", timeout)
+			s.t.FailNow()
+		case <-s.done:
+		}
+	}()
 }
 
+func (s *Snap) Finish() {
+	// ignore the error
+	_ = s.l.Close()
+}
+
+// Addr will return proxy / fake postgres address in form of
+// postgres://user:password@127.0.0.1:15432/postgres
 func (s *Snap) Addr() string {
 	return s.addr
-}
-
-func (s *Snap) WaitFor(d time.Duration) error {
-	if s.writeMode {
-		close(s.done)
-	}
-
-	select {
-	case <-time.After(d):
-		return errors.New("pgsnap timeout")
-	case e := <-s.errchan:
-		return e
-	case <-s.done:
-		return nil
-	}
 }
 
 func (s *Snap) getFilename() string {

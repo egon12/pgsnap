@@ -12,8 +12,6 @@ import (
 )
 
 func (s *Snap) runProxy(url string) {
-	s.writeMode = true
-
 	out, err := os.Create(s.getFilename())
 	if err != nil {
 		s.t.Fatalf("can't create file %s: %v", s.getFilename(), err)
@@ -139,9 +137,9 @@ func (s *Snap) prepareBackend(conn net.Conn) *pgproto3.Backend {
 
 	// expect startup message
 	_, _ = be.ReceiveStartupMessage()
-	be.Send(&pgproto3.AuthenticationOk{})
-	be.Send(&pgproto3.BackendKeyData{ProcessID: 0, SecretKey: 0})
-	be.Send(&pgproto3.ReadyForQuery{TxStatus: 'I'})
+	_ = be.Send(&pgproto3.AuthenticationOk{})
+	_ = be.Send(&pgproto3.BackendKeyData{ProcessID: 0, SecretKey: 0})
+	_ = be.Send(&pgproto3.ReadyForQuery{TxStatus: 'I'})
 
 	return be
 }

@@ -1,0 +1,4 @@
+F {"Type":"Query","String":";"}
+B {"Type":"EmptyQueryResponse"}
+B {"Type":"ReadyForQuery","TxStatus":"I"}
+F {"Type":"Parse","Name":"stmtcache_4","Query":"select id from mytable limit $1","ParameterOIDs":null}
