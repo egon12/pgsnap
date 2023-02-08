@@ -15,10 +15,10 @@ import (
 const addr = "postgres://postgres@127.0.0.1:15432/?sslmode=disable"
 
 func TestSnap_runScript_pq(t *testing.T) {
-	s := NewSnap(t, addr)
+	db, s := NewDB(t, addr)
 	defer s.Finish()
 
-	runPQ(t, s.Addr())
+	runPQ(t, db)
 }
 
 func TestSnap_runScript_pgx(t *testing.T) {
@@ -29,10 +29,10 @@ func TestSnap_runScript_pgx(t *testing.T) {
 }
 
 func TestSnap_runProxy_pq(t *testing.T) {
-	s := NewSnapWithForceWrite(t, addr, true)
+	db, s := NewDBForceWrite(t, addr)
 	defer s.Finish()
 
-	runPQ(t, s.Addr())
+	runPQ(t, db)
 }
 
 func TestSnap_runProxy_pgx(t *testing.T) {
@@ -43,28 +43,25 @@ func TestSnap_runProxy_pgx(t *testing.T) {
 }
 
 func TestSnap_runEmptyScript(t *testing.T) {
-	s := NewSnap(t, addr)
+	db, s := NewDB(t, addr)
 	defer s.Finish()
 
-	runPQ(t, s.Addr())
+	runPQ(t, db)
 
 	// revert to empty file again
 	_ = os.WriteFile(s.getFilename(), []byte(""), os.ModePerm)
 }
 
-func runPQ(t *testing.T, addr string) {
+func runPQ(t *testing.T, db *sql.DB) {
 	t.Helper()
 
-	db, err := sql.Open("postgres", addr)
-	require.NoError(t, err)
-
-	err = db.Ping()
+	err := db.Ping()
 	require.NoError(t, err)
 
 	rows, err := db.Query("select id from mytable limit $1", 7)
 	require.NoError(t, err)
 
-	rows.Close()
+	_ = rows.Close()
 }
 
 func runPGX(t *testing.T, addr string) {

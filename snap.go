@@ -1,6 +1,7 @@
 package pgsnap
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"net"
@@ -30,6 +31,27 @@ type Config struct {
 
 	// Debug if true it will print more verbose
 	Debug bool
+}
+
+// NewDB will create *sql.DB to be used in the test
+func NewDB(t testing.TB, url string) (*sql.DB, *Snap) {
+	snap := NewSnap(t, url)
+	db, err := sql.Open("postgres", snap.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return db, snap
+}
+
+// NewDBForceWrite will create *sql.DB to be used in the test
+// but it will ignore the snapshot file
+func NewDBForceWrite(t testing.TB, url string) (*sql.DB, *Snap) {
+	snap := NewSnapWithForceWrite(t, url, true)
+	db, err := sql.Open("postgres", snap.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return db, snap
 }
 
 // NewSnap will create snap
