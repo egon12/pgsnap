@@ -17,6 +17,7 @@ type (
 	}
 )
 
+// NewServer will create FakePostgresServer with errchan and donechan
 func NewServer(l net.Listener, errchan chan<- error, done chan<- struct{}) *server {
 	return &server{
 		l:       l,
@@ -25,6 +26,7 @@ func NewServer(l net.Listener, errchan chan<- error, done chan<- struct{}) *serv
 	}
 }
 
+// Run will
 func (s *server) Run(script *pgmock.Script) {
 	s.runFakePostgres(script)
 }

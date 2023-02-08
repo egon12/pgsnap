@@ -94,4 +94,5 @@ with snapshot that we have.
       first run and second run have different value. Depends on how many query already run 
       he test process.~~
 - [ ] When we don't interact with database in test it will have empty script.
-- [ ] Empty script not working well
+- [x] Empty script not working well
+- [ ] When expectation is not match, sometimes it can get into waiting forever
