@@ -29,7 +29,7 @@ func TestSnap_runScript_pgx(t *testing.T) {
 }
 
 func TestSnap_runProxy_pq(t *testing.T) {
-	db, s := NewDBForceWrite(t, addr)
+	db, s := NewDBWithConfig(t, addr, Config{ForceWrite: true})
 	defer s.Finish()
 
 	runPQ(t, db)

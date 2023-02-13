@@ -23,7 +23,7 @@ type Snap struct {
 }
 
 type Config struct {
-	// Default 5s
+	// TestTimeout Default 5s
 	TestTimeout time.Duration
 
 	// Force to create proxy and connect to real postgres server
@@ -43,10 +43,10 @@ func NewDB(t testing.TB, url string) (*sql.DB, *Snap) {
 	return db, snap
 }
 
-// NewDBForceWrite will create *sql.DB to be used in the test
+// NewDBWithConfig will create *sql.DB to be used in the test
 // but it will ignore the snapshot file
-func NewDBForceWrite(t testing.TB, url string) (*sql.DB, *Snap) {
-	snap := NewSnapWithForceWrite(t, url, true)
+func NewDBWithConfig(t testing.TB, url string, cfg Config) (*sql.DB, *Snap) {
+	snap := NewSnapWithConfig(t, url, cfg)
 	db, err := sql.Open("postgres", snap.Addr())
 	if err != nil {
 		t.Fatal(err)
@@ -75,6 +75,8 @@ func NewSnapWithForceWrite(t testing.TB, url string, forceWrite bool) *Snap {
 
 // Make it private first, because we still design the api first
 func NewSnapWithConfig(t testing.TB, url string, cfg Config) *Snap {
+	cfg = setDefaultValue(cfg)
+
 	s := &Snap{
 		t:       t,
 		errchan: make(chan error, 100),
@@ -172,4 +174,12 @@ func (s *Snap) shouldRunProxy(err error) bool {
 	}
 
 	return false
+}
+
+func setDefaultValue(cfg Config) Config {
+	if cfg.TestTimeout == 0 {
+		cfg.TestTimeout = 5 * time.Second
+	}
+
+	return cfg
 }
