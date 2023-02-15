@@ -6,34 +6,66 @@ import (
 	"io"
 	"net"
 	"os"
+	"sync/atomic"
+	"testing"
 
 	"github.com/jackc/pgproto3/v2"
 	"github.com/jackc/pgx/v4"
 )
 
-func (s *Snap) runProxy(url string, outFilename string) {
+type proxy struct {
+	t       testing.TB
+	dsn     string
+	script  *script
+	l       net.Listener
+	errchan chan error
+	isDebug bool
+	done    atomic.Bool
+}
+
+func newProxy(t testing.TB, dsn string, script *script, l net.Listener, isDebug bool, errchan chan error) *proxy {
+	return &proxy{
+		t:       t,
+		dsn:     dsn,
+		script:  script,
+		l:       l,
+		errchan: errchan,
+		isDebug: isDebug,
+		done:    atomic.Bool{},
+	}
+}
+
+func (s *proxy) run() {
+	outFilename := s.script.getFilename()
+
 	out, err := os.Create(outFilename)
 	if err != nil {
 		s.t.Fatalf("can't create file %s: %v", outFilename, err)
 	}
 
-	db, err := pgx.Connect(context.TODO(), url)
+	db, err := pgx.Connect(context.TODO(), s.dsn)
 	if err != nil {
-		s.t.Fatalf("can't connect to db %s: %v", url, err)
+		s.t.Fatalf("can't connect to db %s: %v", s.dsn, err)
 	}
 	err = db.Ping(context.TODO())
 	if err != nil {
-		s.t.Fatalf("can't pint to db %s: %v", url, err)
+		s.t.Fatalf("can't pint to db %s: %v", s.dsn, err)
 	}
 
-	go func() {
-		for {
-			s.acceptConnForProxy(db, out)
-		}
-	}()
+	// only accept one connection / test. This is a limitation of the current
+	// implementation.
+	go s.acceptConnForProxy(db, out)
 }
 
-func (s *Snap) acceptConnForProxy(db *pgx.Conn, out io.Writer) {
+func (s *proxy) finish() {
+	if s == nil {
+		return
+	}
+
+	s.done.Store(false)
+}
+
+func (s *proxy) acceptConnForProxy(db *pgx.Conn, out io.Writer) {
 	conn, err := s.l.Accept()
 	if err != nil {
 		s.errchan <- err
@@ -50,17 +82,16 @@ func (s *Snap) acceptConnForProxy(db *pgx.Conn, out io.Writer) {
 	s.runConversation(fe, be, out)
 }
 
-func (s *Snap) runConversation(fe *pgproto3.Frontend, be *pgproto3.Backend, out io.Writer) {
+func (s *proxy) runConversation(fe *pgproto3.Frontend, be *pgproto3.Backend, out io.Writer) {
 	go s.streamBEtoFE(fe, be, out)
 	go s.streamFEtoBE(fe, be, out)
 }
 
-func (s *Snap) streamBEtoFE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io.Writer) {
+func (s *proxy) streamBEtoFE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io.Writer) {
 	for {
 		msg, err := be.Receive()
 		if err != nil {
 			s.t.Errorf("pgsnap: BE cannot receive")
-			s.errchan <- err
 			continue
 		}
 
@@ -92,10 +123,16 @@ func (s *Snap) streamBEtoFE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io.
 		if s.isDebug {
 			s.t.Log("pgsnap: fe receiving2")
 		}
+		if s.done.Load() {
+			if s.isDebug {
+				s.t.Log("pgsnap: fe exit loop")
+			}
+			return
+		}
 	}
 }
 
-func (s *Snap) streamFEtoBE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io.Writer) {
+func (s *proxy) streamFEtoBE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io.Writer) {
 	for {
 		if s.isDebug {
 			s.t.Log("pgsnap: fe receiving")
@@ -103,7 +140,6 @@ func (s *Snap) streamFEtoBE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io.
 		msg, err := fe.Receive()
 		if err != nil {
 			s.t.Errorf("pgsnap: FE cannot receive")
-			s.errchan <- err
 			continue
 		}
 		if s.isDebug {
@@ -129,10 +165,16 @@ func (s *Snap) streamFEtoBE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io.
 				s.t.Errorf("pgsnap: cannot forward to client: %T: %+v", msg, msg)
 			}
 		}
+		if s.done.Load() {
+			if s.isDebug {
+				s.t.Log("pgsnap: be exit loop")
+			}
+			return
+		}
 	}
 }
 
-func (s *Snap) prepareBackend(conn net.Conn) *pgproto3.Backend {
+func (s *proxy) prepareBackend(conn net.Conn) *pgproto3.Backend {
 	be := pgproto3.NewBackend(pgproto3.NewChunkReader(conn), conn)
 
 	// expect startup message
@@ -144,7 +186,7 @@ func (s *Snap) prepareBackend(conn net.Conn) *pgproto3.Backend {
 	return be
 }
 
-func (s *Snap) prepareFrontend(db *pgx.Conn) *pgproto3.Frontend {
+func (s *proxy) prepareFrontend(db *pgx.Conn) *pgproto3.Frontend {
 	conn := db.PgConn().Conn()
 	return pgproto3.NewFrontend(pgproto3.NewChunkReader(conn), conn)
 }

@@ -18,6 +18,8 @@ type Snap struct {
 	done    chan struct{}
 	l       net.Listener
 	isDebug bool
+
+	proxy *proxy // will be fill if using proxy
 }
 
 type Config struct {
@@ -90,13 +92,13 @@ func NewSnapWithConfig(t testing.TB, url string, cfg Config) *Snap {
 	script := newScript(t)
 
 	if cfg.ForceWrite {
-		s.runProxy(url, script.getFilename())
+		s.runProxy(t, url, script, cfg)
 		return s
 	}
 
 	pgxScript, err := script.Read()
 	if s.shouldRunProxy(err) {
-		s.runProxy(url, script.getFilename())
+		s.runProxy(t, url, script, cfg)
 		return s
 	}
 
@@ -108,6 +110,11 @@ func NewSnapWithConfig(t testing.TB, url string, cfg Config) *Snap {
 	server.Run(pgxScript)
 
 	return s
+}
+
+func (s *Snap) runProxy(t testing.TB, url string, script *script, cfg Config) {
+	s.proxy = newProxy(t, url, script, s.l, cfg.Debug, s.errchan)
+	s.proxy.run()
 }
 
 // setFaileAfter will call (*testing.T).Fatalf after timeout
@@ -125,6 +132,10 @@ func (s *Snap) setFailAfter(timeout time.Duration) {
 func (s *Snap) Finish() {
 	// ignore the error
 	_ = s.l.Close()
+
+	if s.proxy != nil {
+		s.proxy.finish()
+	}
 }
 
 // Addr will return proxy / fake postgres address in form of
