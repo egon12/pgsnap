@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strings"
 	"testing"
 	"time"
-	"unicode"
 )
 
 type Snap struct {
@@ -89,24 +87,24 @@ func NewSnapWithConfig(t testing.TB, url string, cfg Config) *Snap {
 
 	s.listen()
 
+	script := newScript(t)
+
 	if cfg.ForceWrite {
-		s.runProxy(url)
+		s.runProxy(url, script.getFilename())
 		return s
 	}
 
-	script := NewScript(t, s.getFilename())
-
 	pgxScript, err := script.Read()
 	if s.shouldRunProxy(err) {
-		s.runProxy(url)
+		s.runProxy(url, script.getFilename())
 		return s
 	}
 
 	if err != nil {
-		s.t.Fatalf("can't open file \"%s\": %v", s.getFilename(), err)
+		s.t.Fatalf("can't open file \"%s\": %v", script.getFilename(), err)
 	}
 
-	server := NewServer(s.l, s.errchan, s.done)
+	server := newServer(s.l, s.errchan, s.done)
 	server.Run(pgxScript)
 
 	return s
@@ -133,22 +131,6 @@ func (s *Snap) Finish() {
 // postgres://user:password@127.0.0.1:15432/postgres
 func (s *Snap) Addr() string {
 	return s.addr
-}
-
-func (s *Snap) getFilename() string {
-	n := s.t.Name()
-	n = strings.TrimPrefix(n, "Test")
-	n = strings.ReplaceAll(n, "/", "__")
-	n = strings.Map(func(r rune) rune {
-		switch {
-		case unicode.IsLetter(r) || unicode.IsNumber(r):
-			return r
-		default:
-			return '_'
-		}
-	}, n)
-	n = strings.ToLower(n)
-	return "pgsnap_" + n + ".txt"
 }
 
 func (s *Snap) listen() net.Listener {

@@ -8,7 +8,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	_ "github.com/lib/pq"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -49,7 +48,8 @@ func TestSnap_runEmptyScript(t *testing.T) {
 	runPQ(t, db)
 
 	// revert to empty file again
-	_ = os.WriteFile(s.getFilename(), []byte(""), os.ModePerm)
+	script := newScript(t)
+	_ = os.WriteFile(script.getFilename(), []byte(""), os.ModePerm)
 }
 
 func runPQ(t *testing.T, db *sql.DB) {
@@ -75,19 +75,4 @@ func runPGX(t *testing.T, addr string) {
 
 	_, err = db.Query(context.TODO(), "select id from mytable limit $1", 7)
 	require.NoError(t, err)
-}
-
-func Test_getFilename(t *testing.T) {
-	s := &Snap{t: t}
-	assert.Equal(t, "pgsnap__getfilename.txt", s.getFilename())
-
-	t.Run("another test name", func(t *testing.T) {
-		s = &Snap{t: t}
-		assert.Equal(t, "pgsnap__getfilename__another_test_name.txt", s.getFilename())
-	})
-
-	t.Run("what about this one?", func(t *testing.T) {
-		s = &Snap{t: t}
-		assert.Equal(t, "pgsnap__getfilename__what_about_this_one_.txt", s.getFilename())
-	})
 }

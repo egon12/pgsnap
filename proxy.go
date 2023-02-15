@@ -11,10 +11,10 @@ import (
 	"github.com/jackc/pgx/v4"
 )
 
-func (s *Snap) runProxy(url string) {
-	out, err := os.Create(s.getFilename())
+func (s *Snap) runProxy(url string, outFilename string) {
+	out, err := os.Create(outFilename)
 	if err != nil {
-		s.t.Fatalf("can't create file %s: %v", s.getFilename(), err)
+		s.t.Fatalf("can't create file %s: %v", outFilename, err)
 	}
 
 	db, err := pgx.Connect(context.TODO(), url)

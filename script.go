@@ -6,7 +6,9 @@ import (
 	"errors"
 	"io"
 	"os"
+	"strings"
 	"testing"
+	"unicode"
 
 	"github.com/jackc/pgmock"
 	"github.com/jackc/pgproto3/v2"
@@ -21,12 +23,33 @@ type (
 
 var EmptyScript = errors.New("script is empty")
 
-func NewScript(t testing.TB, path string) *script {
-	return &script{t: t, path: path}
+func newScript(t testing.TB) *script {
+	return &script{t: t}
+}
+
+func (s *script) getFilename() string {
+	if s.path != "" {
+		return s.path
+	}
+
+	n := s.t.Name()
+	n = strings.TrimPrefix(n, "Test")
+	n = strings.ReplaceAll(n, "/", "__")
+	n = strings.Map(func(r rune) rune {
+		switch {
+		case unicode.IsLetter(r) || unicode.IsNumber(r):
+			return r
+		default:
+			return '_'
+		}
+	}, n)
+	n = strings.ToLower(n)
+	s.path = "pgsnap_" + n + ".txt"
+	return s.path
 }
 
 func (s *script) ReadOnlyFile() (*os.File, error) {
-	return os.OpenFile(s.path, os.O_RDONLY, 0)
+	return os.OpenFile(s.getFilename(), os.O_RDONLY, 0)
 }
 
 func (s *script) Read() (*pgmock.Script, error) {
