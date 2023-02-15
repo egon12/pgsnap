@@ -3,6 +3,7 @@ package pgsnap
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -53,18 +54,19 @@ func Test_if_not_accept_should_throw_timeout(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	assert.True(t, tb.FailNowCalled)
+	assert.True(t, tb.FailNowCalled.Load())
 }
 
 type fakeTB struct {
 	testing.TB
 	ErrorMessages []string
-	FailNowCalled bool
+	FailNowCalled *atomic.Bool
 }
 
 func newFakeTB(t testing.TB) *fakeTB {
 	return &fakeTB{
-		TB: t,
+		TB:            t,
+		FailNowCalled: &atomic.Bool{},
 	}
 }
 
@@ -77,5 +79,5 @@ func (f *fakeTB) Errorf(format string, args ...interface{}) {
 }
 
 func (f *fakeTB) FailNow() {
-	f.FailNowCalled = true
+	f.FailNowCalled.Store(true)
 }
