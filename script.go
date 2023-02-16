@@ -23,6 +23,28 @@ type (
 
 var EmptyScript = errors.New("script is empty")
 
+func IsSnapshotExists(t testing.TB) bool {
+	t.Helper()
+
+	script := newScript(t)
+	_, err := script.Read()
+
+	if err == nil {
+		return true
+	}
+
+	if os.IsNotExist(err) {
+		return false
+	}
+
+	if errors.Is(err, EmptyScript) {
+		return false
+	}
+
+	t.Errorf("cannot read snapshot in %s: %s", script.getFilename(), err.Error())
+	return false
+}
+
 func newScript(t testing.TB) *script {
 	return &script{t: t}
 }
