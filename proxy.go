@@ -18,18 +18,16 @@ type proxy struct {
 	dsn     string
 	script  *script
 	l       net.Listener
-	errchan chan error
 	isDebug bool
 	done    atomic.Bool
 }
 
-func newProxy(t testing.TB, dsn string, script *script, l net.Listener, isDebug bool, errchan chan error) *proxy {
+func newProxy(t testing.TB, dsn string, script *script, l net.Listener, isDebug bool) *proxy {
 	return &proxy{
 		t:       t,
 		dsn:     dsn,
 		script:  script,
 		l:       l,
-		errchan: errchan,
 		isDebug: isDebug,
 		done:    atomic.Bool{},
 	}
@@ -68,7 +66,7 @@ func (s *proxy) finish() {
 func (s *proxy) acceptConnForProxy(db *pgx.Conn, out io.Writer) {
 	conn, err := s.l.Accept()
 	if err != nil {
-		s.errchan <- err
+		s.t.Errorf("server: cannot accept connection: %v", err)
 		return
 	}
 	if s.isDebug {
@@ -91,9 +89,7 @@ func (s *proxy) runConversation(fe *pgproto3.Frontend, be *pgproto3.Backend, out
 // this get message from test script and it will be saved to file
 func (s *proxy) streamBEtoFE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io.Writer) {
 	for {
-		if s.isDebug {
-			s.t.Log("pgsnap: BE receiving")
-		}
+		s.debugLogf("pgsnap: BE receiving")
 		msg, err := be.Receive()
 		if err == io.ErrUnexpectedEOF {
 			s.t.Errorf("pgsnap: BE got unexpectedEOF. Maybe db exited?")
@@ -114,14 +110,10 @@ func (s *proxy) streamBEtoFE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io
 			b = append(b, []byte("\n")...)
 			_, _ = out.Write(b)
 		}
-		if s.isDebug {
-			s.t.Logf("pgsnap: BE create FE obj %T: %+v", msg, msg)
-		}
+		s.debugLogf("pgsnap: BE create FE obj %T: %+v", msg, msg)
 
 		if msg != nil {
-			if s.isDebug {
-				s.t.Logf("pgsnap: BE send to database: %+v", msg)
-			}
+			s.debugLogf("pgsnap: BE send to database: %+v", msg)
 			err = fe.Send(msg)
 			if s.isDebug {
 				s.t.Logf("pgsnap: BE send to database done err: %v", err)
@@ -132,17 +124,13 @@ func (s *proxy) streamBEtoFE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io
 		}
 
 		if _, ok := msg.(*pgproto3.Terminate); ok {
-			if s.isDebug {
-				s.t.Log("pgsnap: BE got terminate")
-			}
+			s.debugLogf("pgsnap: BE got terminate")
 			s.done.Store(true)
 			return
 		}
 
 		if s.done.Load() {
-			if s.isDebug {
-				s.t.Log("pgsnap: BE exit loop")
-			}
+			s.debugLogf("pgsnap: BE exit loop")
 			return
 		}
 	}
@@ -150,15 +138,12 @@ func (s *proxy) streamBEtoFE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io
 
 func (s *proxy) streamFEtoBE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io.Writer) {
 	for {
-		if s.isDebug {
-			s.t.Log("pgsnap: FE receiving")
-		}
+		s.debugLogf("pgsnap: FE receiving")
+
 		msg, err := fe.Receive()
 		if err == io.ErrUnexpectedEOF {
 			if s.done.Load() {
-				if s.isDebug {
-					s.t.Log("pgsnap: FE got EOF exit")
-				}
+				s.debugLogf("pgsnap: FE got EOF exit")
 				return
 			}
 			s.t.Errorf("pgsnap: unexpectedEOF from Database. Maybe database exit unexpectedly?")
@@ -168,9 +153,7 @@ func (s *proxy) streamFEtoBE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io
 			s.t.Errorf("pgsnap: error when FE receive: %v", err)
 			continue
 		}
-		if s.isDebug {
-			s.t.Logf("pgsnap: FE recive BE message %T: %+v", msg, msg)
-		}
+		s.debugLogf("pgsnap: FE recive BE message %T: %+v", msg, msg)
 
 		b, err := json.Marshal(msg)
 		if err != nil {
@@ -181,9 +164,7 @@ func (s *proxy) streamFEtoBE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io
 			b = append(b, []byte("\n")...)
 			_, _ = out.Write(b)
 		}
-		if s.isDebug {
-			s.t.Logf("pgsnap: FE forward to test %T: %+v", msg, msg)
-		}
+		s.debugLogf("pgsnap: FE forward to test %T: %+v", msg, msg)
 
 		if msg != nil {
 			be.Send(msg)
@@ -193,9 +174,7 @@ func (s *proxy) streamFEtoBE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io
 		}
 
 		if s.done.Load() {
-			if s.isDebug {
-				s.t.Log("pgsnap: FE exit loop")
-			}
+			s.debugLogf("pgsnap: FE exit loop")
 			return
 		}
 	}
@@ -216,4 +195,10 @@ func (s *proxy) prepareBackend(conn net.Conn) *pgproto3.Backend {
 func (s *proxy) prepareFrontend(db *pgx.Conn) *pgproto3.Frontend {
 	conn := db.PgConn().Conn()
 	return pgproto3.NewFrontend(pgproto3.NewChunkReader(conn), conn)
+}
+
+func (s *proxy) debugLogf(format string, args ...interface{}) {
+	if s.isDebug {
+		s.t.Logf(format, args...)
+	}
 }

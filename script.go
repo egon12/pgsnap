@@ -41,7 +41,7 @@ func IsSnapshotExists(t testing.TB) bool {
 		return false
 	}
 
-	t.Errorf("cannot read snapshot in %s: %s", script.getFilename(), err.Error())
+	t.Fatalf("cannot read snapshot in %s: %s", script.getFilename(), err.Error())
 	return false
 }
 

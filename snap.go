@@ -13,7 +13,6 @@ import (
 type Snap struct {
 	t       testing.TB
 	addr    string
-	errchan chan error
 	msgchan chan string
 	done    chan struct{}
 	l       net.Listener
@@ -75,11 +74,11 @@ func NewSnapWithForceWrite(t testing.TB, url string, forceWrite bool) *Snap {
 
 // Make it private first, because we still design the api first
 func NewSnapWithConfig(t testing.TB, url string, cfg Config) *Snap {
+	t.Helper()
 	cfg = setDefaultValue(cfg)
 
 	s := &Snap{
 		t:       t,
-		errchan: make(chan error, 100),
 		msgchan: make(chan string, 100),
 		done:    make(chan struct{}, 1),
 		isDebug: cfg.Debug,
@@ -106,14 +105,14 @@ func NewSnapWithConfig(t testing.TB, url string, cfg Config) *Snap {
 		s.t.Fatalf("can't open file \"%s\": %v", script.getFilename(), err)
 	}
 
-	server := newServer(s.l, s.errchan, s.done)
+	server := newServer(s.l, s.done, s.t, s.isDebug)
 	server.Run(pgxScript)
 
 	return s
 }
 
 func (s *Snap) runProxy(t testing.TB, url string, script *script, cfg Config) {
-	s.proxy = newProxy(t, url, script, s.l, cfg.Debug, s.errchan)
+	s.proxy = newProxy(t, url, script, s.l, cfg.Debug)
 	s.proxy.run()
 }
 
