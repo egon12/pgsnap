@@ -87,17 +87,27 @@ func (s *proxy) runConversation(fe *pgproto3.Frontend, be *pgproto3.Backend, out
 	go s.streamFEtoBE(fe, be, out)
 }
 
+// streamBEtoFE streams messages from test to frontend
+// this get message from test script and it will be saved to file
 func (s *proxy) streamBEtoFE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io.Writer) {
 	for {
+		if s.isDebug {
+			s.t.Log("pgsnap: BE receiving")
+		}
 		msg, err := be.Receive()
+		if err == io.ErrUnexpectedEOF {
+			s.t.Errorf("pgsnap: BE got unexpectedEOF. Maybe db exited?")
+			break
+		}
+
 		if err != nil {
-			s.t.Errorf("pgsnap: BE cannot receive")
+			s.t.Errorf("pgsnap: BE failed receive message: %v", err)
 			continue
 		}
 
 		b, err := json.Marshal(msg)
 		if err != nil {
-			s.t.Errorf("pgsnap: cannot marshal: %T: %+v", msg, msg)
+			s.t.Errorf("pgsnap: BE cannot marshal: %T: %+v", msg, msg)
 		}
 		if len(b) > 0 {
 			b = append([]byte{'F', ' '}, b...)
@@ -105,27 +115,24 @@ func (s *proxy) streamBEtoFE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io
 			_, _ = out.Write(b)
 		}
 		if s.isDebug {
-			s.t.Logf("pgsnap: %T: %+v", msg, msg)
+			s.t.Logf("pgsnap: BE create FE obj %T: %+v", msg, msg)
 		}
 
 		if msg != nil {
 			if s.isDebug {
-				s.t.Logf("pgsnap: sending message: %+v", msg)
+				s.t.Logf("pgsnap: BE send to database: %+v", msg)
 			}
 			err = fe.Send(msg)
 			if s.isDebug {
-				s.t.Logf("pgsnap: sending message done err: %v", err)
+				s.t.Logf("pgsnap: BE send to database done err: %v", err)
 			}
 			if err != nil {
-				s.t.Errorf("pgsnap: cannot forward to postgre: %T: %+v", msg, msg)
+				s.t.Errorf("pgsnap: BE cannot forward to postgre: %T: %+v", msg, msg)
 			}
-		}
-		if s.isDebug {
-			s.t.Log("pgsnap: fe receiving2")
 		}
 		if s.done.Load() {
 			if s.isDebug {
-				s.t.Log("pgsnap: fe exit loop")
+				s.t.Log("pgsnap: BE exit loop")
 			}
 			return
 		}
@@ -135,20 +142,24 @@ func (s *proxy) streamBEtoFE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io
 func (s *proxy) streamFEtoBE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io.Writer) {
 	for {
 		if s.isDebug {
-			s.t.Log("pgsnap: fe receiving")
+			s.t.Log("pgsnap: FE receiving")
 		}
 		msg, err := fe.Receive()
+		if err == io.ErrUnexpectedEOF {
+			s.t.Errorf("pgsnap: unexpectedEOF from Database. Maybe database exit unexpectedly?")
+			return
+		}
 		if err != nil {
-			s.t.Errorf("pgsnap: FE cannot receive")
+			s.t.Errorf("pgsnap: error when FE receive: %v", err)
 			continue
 		}
 		if s.isDebug {
-			s.t.Logf("pgsnap: message receive%T: %+v", msg, msg)
+			s.t.Logf("pgsnap: FE recive BE message %T: %+v", msg, msg)
 		}
 
 		b, err := json.Marshal(msg)
 		if err != nil {
-			s.t.Errorf("pgsnap: cannot marshal: %T: %+v", msg, msg)
+			s.t.Errorf("pgsnap: FE cannot marshal BE message: %T: %+v", msg, msg)
 		}
 		if len(b) > 0 {
 			b = append([]byte{'B', ' '}, b...)
@@ -156,18 +167,18 @@ func (s *proxy) streamFEtoBE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io
 			_, _ = out.Write(b)
 		}
 		if s.isDebug {
-			s.t.Logf("pgsnap: %T: %+v", msg, msg)
+			s.t.Logf("pgsnap: FE forward to test %T: %+v", msg, msg)
 		}
 
 		if msg != nil {
 			be.Send(msg)
 			if err != nil {
-				s.t.Errorf("pgsnap: cannot forward to client: %T: %+v", msg, msg)
+				s.t.Errorf("pgsnap: FE forward to client error: %T: %+v :%v", msg, msg, err)
 			}
 		}
 		if s.done.Load() {
 			if s.isDebug {
-				s.t.Log("pgsnap: be exit loop")
+				s.t.Log("pgsnap: FE exit loop")
 			}
 			return
 		}
