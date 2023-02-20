@@ -97,7 +97,7 @@ func (s *proxy) streamBEtoFE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io
 		msg, err := be.Receive()
 		if err == io.ErrUnexpectedEOF {
 			s.t.Errorf("pgsnap: BE got unexpectedEOF. Maybe db exited?")
-			break
+			return
 		}
 
 		if err != nil {
@@ -130,6 +130,15 @@ func (s *proxy) streamBEtoFE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io
 				s.t.Errorf("pgsnap: BE cannot forward to postgre: %T: %+v", msg, msg)
 			}
 		}
+
+		if _, ok := msg.(*pgproto3.Terminate); ok {
+			if s.isDebug {
+				s.t.Log("pgsnap: BE got terminate")
+			}
+			s.done.Store(true)
+			return
+		}
+
 		if s.done.Load() {
 			if s.isDebug {
 				s.t.Log("pgsnap: BE exit loop")
@@ -146,6 +155,12 @@ func (s *proxy) streamFEtoBE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io
 		}
 		msg, err := fe.Receive()
 		if err == io.ErrUnexpectedEOF {
+			if s.done.Load() {
+				if s.isDebug {
+					s.t.Log("pgsnap: FE got EOF exit")
+				}
+				return
+			}
 			s.t.Errorf("pgsnap: unexpectedEOF from Database. Maybe database exit unexpectedly?")
 			return
 		}
@@ -176,6 +191,7 @@ func (s *proxy) streamFEtoBE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io
 				s.t.Errorf("pgsnap: FE forward to client error: %T: %+v :%v", msg, msg, err)
 			}
 		}
+
 		if s.done.Load() {
 			if s.isDebug {
 				s.t.Log("pgsnap: FE exit loop")
