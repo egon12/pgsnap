@@ -51,7 +51,7 @@ func (s *server) acceptConnForScript(script *pgmock.Script) {
 	s.debugLogf("server: accepted connection")
 
 	if err = conn.SetDeadline(time.Now().Add(time.Second)); err != nil {
-		s.t.Errorf("server: cannott set deadline: %v", err)
+		s.t.Errorf("server: cannot set deadline: %v", err)
 		return
 	}
 
