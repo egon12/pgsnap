@@ -2,6 +2,7 @@ package pgsnap
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgproto3/v2"
@@ -160,4 +161,29 @@ func Test_expectBindMessage_compare(t *testing.T) {
 			assert.Equal(t, err, tt.wantErr)
 		})
 	}
+}
+
+func Test_customExpectation_BackendError(t *testing.T) {
+	r := strings.NewReader("")
+	w := &strings.Builder{}
+
+	be := pgproto3.NewBackend(pgproto3.NewChunkReader(r), w)
+
+	t.Run("expectParseMessage backend error", func(t *testing.T) {
+		e := &expectParseMessage{}
+		err := e.Step(be)
+		assert.Error(t, err)
+	})
+
+	t.Run("expectDescribeMessage backend error", func(t *testing.T) {
+		e := &expectDescribeMessage{}
+		err := e.Step(be)
+		assert.Error(t, err)
+	})
+
+	t.Run("expectDescribeMessage backend error", func(t *testing.T) {
+		e := &expectBindMessage{}
+		err := e.Step(be)
+		assert.Error(t, err)
+	})
 }
