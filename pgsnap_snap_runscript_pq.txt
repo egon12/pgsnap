@@ -6,7 +6,7 @@ F {"Type":"Describe","ObjectType":"S","Name":""}
 F {"Type":"Sync"}
 B {"Type":"ParseComplete"}
 B {"Type":"ParameterDescription","ParameterOIDs":[20]}
-B {"Type":"RowDescription","Fields":[{"Name":"id","TableOID":16386,"TableAttributeNumber":1,"DataTypeOID":23,"DataTypeSize":4,"TypeModifier":-1,"Format":0}]}
+B {"Type":"RowDescription","Fields":[{"Name":"id","TableOID":16385,"TableAttributeNumber":1,"DataTypeOID":23,"DataTypeSize":4,"TypeModifier":-1,"Format":0}]}
 B {"Type":"ReadyForQuery","TxStatus":"I"}
 F {"Type":"Bind","DestinationPortal":"","PreparedStatement":"","ParameterFormatCodes":null,"Parameters":[{"text":"7"}],"ResultFormatCodes":[1]}
 F {"Type":"Execute","Portal":"","MaxRows":0}

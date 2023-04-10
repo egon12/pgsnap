@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log"
 	"net"
 	"os"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -14,12 +16,13 @@ import (
 )
 
 type proxy struct {
-	t       testing.TB
-	dsn     string
-	script  *script
-	l       net.Listener
-	isDebug bool
-	done    atomic.Bool
+	t         testing.TB
+	dsn       string
+	script    *script
+	l         net.Listener
+	isDebug   bool
+	done      atomic.Bool
+	doneMutex sync.Mutex
 }
 
 func newProxy(t testing.TB, dsn string, script *script, l net.Listener, isDebug bool) *proxy {
@@ -45,9 +48,10 @@ func (s *proxy) run() {
 	if err != nil {
 		s.t.Fatalf("can't connect to db %s: %v", s.dsn, err)
 	}
+
 	err = db.Ping(context.TODO())
 	if err != nil {
-		s.t.Fatalf("can't pint to db %s: %v", s.dsn, err)
+		s.t.Fatalf("can't ping to db %s: %v", s.dsn, err)
 	}
 
 	// only accept one connection / test. This is a limitation of the current
@@ -60,7 +64,8 @@ func (s *proxy) finish() {
 		return
 	}
 
-	s.done.Store(false)
+	s.debugLogf("pgsnap: proxy finish")
+	s.setDone()
 }
 
 func (s *proxy) acceptConnForProxy(db *pgx.Conn, out io.Writer) {
@@ -115,21 +120,13 @@ func (s *proxy) streamBEtoFE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io
 		if msg != nil {
 			s.debugLogf("pgsnap: BE send to database: %+v", msg)
 			err = fe.Send(msg)
-			if s.isDebug {
-				s.t.Logf("pgsnap: BE send to database done err: %v", err)
-			}
+			s.debugLogf("pgsnap: BE send to database done err: %v", err)
 			if err != nil {
 				s.t.Errorf("pgsnap: BE cannot forward to postgre: %T: %+v", msg, msg)
 			}
 		}
 
-		if _, ok := msg.(*pgproto3.Terminate); ok {
-			s.debugLogf("pgsnap: BE got terminate")
-			s.done.Store(true)
-			return
-		}
-
-		if s.done.Load() {
+		if s.isDone() {
 			s.debugLogf("pgsnap: BE exit loop")
 			return
 		}
@@ -142,7 +139,7 @@ func (s *proxy) streamFEtoBE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io
 
 		msg, err := fe.Receive()
 		if err == io.ErrUnexpectedEOF {
-			if s.done.Load() {
+			if s.isDone() {
 				s.debugLogf("pgsnap: FE got EOF exit")
 				return
 			}
@@ -153,7 +150,7 @@ func (s *proxy) streamFEtoBE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io
 			s.t.Errorf("pgsnap: error when FE receive: %v", err)
 			continue
 		}
-		s.debugLogf("pgsnap: FE recive BE message %T: %+v", msg, msg)
+		s.debugLogf("pgsnap: FE receive BE message %T: %+v", msg, msg)
 
 		b, err := json.Marshal(msg)
 		if err != nil {
@@ -199,6 +196,23 @@ func (s *proxy) prepareFrontend(db *pgx.Conn) *pgproto3.Frontend {
 
 func (s *proxy) debugLogf(format string, args ...interface{}) {
 	if s.isDebug {
-		s.t.Logf(format, args...)
+		if !s.isDone() {
+			s.t.Helper()
+			s.t.Logf(format, args...)
+			return
+		}
+		log.Printf(s.t.Name()+": "+format, args...)
 	}
+}
+
+func (s *proxy) setDone() {
+	s.doneMutex.Lock()
+	defer s.doneMutex.Unlock()
+	s.done.Store(true)
+}
+
+func (s *proxy) isDone() bool {
+	s.doneMutex.Lock()
+	defer s.doneMutex.Unlock()
+	return s.done.Load()
 }

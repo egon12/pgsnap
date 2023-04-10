@@ -32,7 +32,7 @@ func Test_error_case(t *testing.T) {
 			Position:         15,
 			InternalPosition: 0,
 			File:             "parse_relation.c",
-			Line:             1376,
+			Line:             1392,
 			Routine:          "parserOpenTable",
 		})
 	})

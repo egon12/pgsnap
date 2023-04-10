@@ -3,7 +3,6 @@ package pgsnap
 import (
 	"net"
 	"testing"
-	"time"
 
 	"github.com/jackc/pgmock"
 	"github.com/jackc/pgproto3/v2"
@@ -50,10 +49,10 @@ func (s *server) acceptConnForScript(script *pgmock.Script) {
 	defer conn.Close()
 	s.debugLogf("server: accepted connection")
 
-	if err = conn.SetDeadline(time.Now().Add(time.Second)); err != nil {
-		s.t.Errorf("server: cannot set deadline: %v", err)
-		return
-	}
+	//if err = conn.SetDeadline(time.Now().Add(time.Second)); err != nil {
+	//	s.t.Errorf("server: cannot set deadline: %v", err)
+	//	return
+	//}
 
 	be := pgproto3.NewBackend(pgproto3.NewChunkReader(conn), conn)
 
@@ -63,10 +62,11 @@ func (s *server) acceptConnForScript(script *pgmock.Script) {
 		s.waitTilSync(be)
 		s.sendError(be, err)
 
-		_ = conn.(*net.TCPConn).SetLinger(0)
+		//_ = conn.(*net.TCPConn).SetLinger(0)
 		return
 	}
 
+	s.debugLogf("server: finish script")
 	s.done <- struct{}{}
 }
 
@@ -101,6 +101,7 @@ func (s *server) sendError(be *pgproto3.Backend, postgresError error) {
 
 func (s *server) debugLogf(format string, args ...interface{}) {
 	if s.isDebug {
+		s.t.Helper()
 		s.t.Logf(format, args...)
 	}
 }

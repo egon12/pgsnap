@@ -135,6 +135,11 @@ func (s *Snap) Finish() {
 	if s.proxy != nil {
 		s.proxy.finish()
 	}
+
+	select {
+	case <-time.After(1 * time.Second):
+	case <-s.done:
+	}
 }
 
 // Addr will return proxy / fake postgres address in form of
