@@ -17,4 +17,3 @@ B {"Type":"DataRow","Values":[{"binary":"00000002"}]}
 B {"Type":"DataRow","Values":[{"binary":"00000003"}]}
 B {"Type":"CommandComplete","CommandTag":"SELECT 3"}
 B {"Type":"ReadyForQuery","TxStatus":"I"}
-B {"Type":"ErrorResponse","Severity":"FATAL","SeverityUnlocalized":"FATAL","Code":"57P01","Message":"terminating connection due to unexpected postmaster exit","Detail":"","Hint":"","Position":0,"InternalPosition":0,"InternalQuery":"","Where":"","SchemaName":"","TableName":"","ColumnName":"","DataTypeName":"","ConstraintName":"","File":"be-secure.c","Line":207,"Routine":"secure_read","UnknownFields":null}

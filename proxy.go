@@ -85,6 +85,7 @@ func (s *proxy) acceptConnForProxy(db *pgx.Conn, out io.Writer) {
 	s.runConversation(fe, be, out)
 }
 
+// runConversation will run conversation between frontend and backend
 func (s *proxy) runConversation(fe *pgproto3.Frontend, be *pgproto3.Backend, out io.Writer) {
 	go s.streamBEtoFE(fe, be, out)
 	go s.streamFEtoBE(fe, be, out)
@@ -96,12 +97,16 @@ func (s *proxy) streamBEtoFE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io
 	for {
 		s.debugLogf("pgsnap: BE receiving")
 		msg, err := be.Receive()
-		if err == io.ErrUnexpectedEOF {
-			s.t.Errorf("pgsnap: BE got unexpectedEOF. Maybe db exited?")
-			return
-		}
-
 		if err != nil {
+			if s.isDone() {
+				s.debugLogf("pgsnap: error on receive after test done: %v", err)
+				return
+			}
+			if err == io.ErrUnexpectedEOF {
+				s.t.Errorf("pgsnap: BE got unexpectedEOF. Maybe db client exited?")
+				return
+			}
+
 			s.t.Errorf("pgsnap: BE failed receive message: %v", err)
 			continue
 		}
@@ -138,23 +143,26 @@ func (s *proxy) streamFEtoBE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io
 		s.debugLogf("pgsnap: FE receiving")
 
 		msg, err := fe.Receive()
-		if err == io.ErrUnexpectedEOF {
+		if err != nil {
 			if s.isDone() {
-				s.debugLogf("pgsnap: FE got EOF exit")
+				s.debugLogf("pgsnap: FE loop exit, error after done: %v", err)
 				return
 			}
-			s.t.Errorf("pgsnap: unexpectedEOF from Database. Maybe database exit unexpectedly?")
-			return
-		}
-		if err != nil {
+
+			if err == io.ErrUnexpectedEOF {
+				s.t.Errorf("pgsnap: unexpectedEOF from Database. Maybe database exit unexpectedly?")
+				return
+			}
+
 			s.t.Errorf("pgsnap: error when FE receive: %v", err)
 			continue
 		}
-		s.debugLogf("pgsnap: FE receive BE message %T: %+v", msg, msg)
+
+		s.debugLogf("pgsnap: FE receive Database message %T: %+v", msg, msg)
 
 		b, err := json.Marshal(msg)
 		if err != nil {
-			s.t.Errorf("pgsnap: FE cannot marshal BE message: %T: %+v", msg, msg)
+			s.t.Errorf("pgsnap: FE cannot marshal Database message: %T: %+v", msg, msg)
 		}
 		if len(b) > 0 {
 			b = append([]byte{'B', ' '}, b...)
@@ -170,7 +178,7 @@ func (s *proxy) streamFEtoBE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io
 			}
 		}
 
-		if s.done.Load() {
+		if s.isDone() {
 			s.debugLogf("pgsnap: FE exit loop")
 			return
 		}
