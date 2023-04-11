@@ -2,6 +2,7 @@ package pgsnap
 
 import (
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ type (
 		l       net.Listener
 		done    chan<- struct{}
 		isDebug bool
+		wg      sync.WaitGroup
 	}
 )
 
@@ -37,11 +39,23 @@ func (s *server) Run(script *pgmock.Script) {
 	s.runFakePostgres(script)
 }
 
+func (s *server) Wait() {
+	s.wg.Wait()
+}
+
 func (s *server) runFakePostgres(script *pgmock.Script) {
+	s.wg.Add(1)
 	go s.acceptConnForScript(script)
 }
 
 func (s *server) acceptConnForScript(script *pgmock.Script) {
+	// need to defer this to make sure we send the done signal
+	defer func() {
+		s.debugLogf("server: finish script")
+		s.wg.Done()
+		s.done <- struct{}{}
+	}()
+
 	conn, err := s.l.Accept()
 	if err != nil {
 		s.t.Errorf("server: cannot accept connection: %v", err)
@@ -50,11 +64,6 @@ func (s *server) acceptConnForScript(script *pgmock.Script) {
 	defer conn.Close()
 	s.debugLogf("server: accepted connection")
 
-	if err = conn.SetDeadline(time.Now().Add(time.Second)); err != nil {
-		s.t.Errorf("server: cannot set deadline: %v", err)
-		return
-	}
-
 	be := pgproto3.NewBackend(pgproto3.NewChunkReader(conn), conn)
 
 	s.debugLogf("server: run script")
@@ -62,12 +71,8 @@ func (s *server) acceptConnForScript(script *pgmock.Script) {
 		s.t.Errorf("server: run script got error: %v", err)
 		s.waitTilSync(be)
 		s.sendError(be, err)
-
-		_ = conn.(*net.TCPConn).SetLinger(0)
 		return
 	}
-
-	s.done <- struct{}{}
 }
 
 func (s *server) waitTilSync(be *pgproto3.Backend) {
@@ -101,6 +106,8 @@ func (s *server) sendError(be *pgproto3.Backend, postgresError error) {
 
 func (s *server) debugLogf(format string, args ...interface{}) {
 	if s.isDebug {
-		s.t.Logf(format, args...)
+		s.t.Helper()
+		args = append([]interface{}{time.Now()}, args...)
+		s.t.Logf("%v: "+format, args...)
 	}
 }
