@@ -18,7 +18,8 @@ type Snap struct {
 	l       net.Listener
 	isDebug bool
 
-	proxy *proxy // will be fill if using proxy
+	proxy  *proxy  // will be fill if using proxy
+	server *server // will be fill if using fake server
 }
 
 type Config struct {
@@ -105,8 +106,8 @@ func NewSnapWithConfig(t testing.TB, url string, cfg Config) *Snap {
 		s.t.Fatalf("can't open file \"%s\": %v", script.getFilename(), err)
 	}
 
-	server := newServer(s.l, s.done, s.t, s.isDebug)
-	server.Run(pgxScript)
+	s.server = newServer(s.l, s.done, s.t, s.isDebug)
+	s.server.Run(pgxScript)
 
 	return s
 }
@@ -136,9 +137,8 @@ func (s *Snap) Finish() {
 		s.proxy.finish()
 	}
 
-	select {
-	case <-time.After(1 * time.Second):
-	case <-s.done:
+	if s.server != nil {
+		s.server.Wait()
 	}
 }
 
