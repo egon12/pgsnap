@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"testing"
@@ -121,9 +122,11 @@ func (s *Snap) runProxy(t testing.TB, url string, script *script, cfg Config) {
 
 // setFaileAfter will call (*testing.T).Fatalf after timeout
 func (s *Snap) setFailAfter(timeout time.Duration) {
+	start := time.Now()
 	go func() {
 		select {
 		case <-time.After(timeout):
+			log.Printf("pgsnap timeout after %v, start at %v, end at %v", timeout, start, time.Now())
 			s.t.Errorf("pgsnap timeout after %v", timeout)
 			s.t.FailNow()
 		case <-s.done:
@@ -137,6 +140,7 @@ func (s *Snap) Finish() {
 
 	if s.proxy != nil {
 		s.proxy.finish()
+		s.done <- struct{}{}
 	}
 
 	if s.server != nil {
