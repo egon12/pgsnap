@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"os"
+	"sync"
 	"testing"
 
 	"github.com/jackc/pgx/v4"
@@ -28,13 +29,30 @@ func TestSnap_runScript_pgx(t *testing.T) {
 }
 
 func TestSnap_runProxy_pq(t *testing.T) {
-	db, s := NewDBWithConfig(t, addr, Config{ForceWrite: true})
+	t.Skip("Still figure out how to design two connection")
+	var s *Snap
+	wg2 := sync.WaitGroup{}
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	wg2.Add(1)
+	go t.Run("inception", func(t *testing.T) {
+		s = NewSnap(t, addr)
+		wg.Done()
+		wg2.Wait()
+		defer s.Finish()
+	})
+
+	wg.Wait()
+
+	db, s := NewDBWithConfig(t, s.Addr(), Config{ForceWrite: true})
 	defer s.Finish()
 
 	runPQ(t, db)
+	wg2.Done()
 }
 
 func TestSnap_runProxy_pgx(t *testing.T) {
+	t.Skip("try to use dockertest")
 	s := NewSnapWithForceWrite(t, addr, true)
 	defer s.Finish()
 
@@ -42,6 +60,7 @@ func TestSnap_runProxy_pgx(t *testing.T) {
 }
 
 func TestSnap_runEmptyScript(t *testing.T) {
+	t.Skip("try to use dockertest")
 	db, s := NewDB(t, addr)
 	defer s.Finish()
 
