@@ -1,0 +1,20 @@
+F {"Type":"Query","String":";"}
+B {"Type":"EmptyQueryResponse"}
+B {"Type":"ReadyForQuery","TxStatus":"I"}
+F {"Type":"Parse","Name":"","Query":"select id from mytable limit $1","ParameterOIDs":null}
+F {"Type":"Describe","ObjectType":"S","Name":""}
+F {"Type":"Sync"}
+B {"Type":"ParseComplete"}
+B {"Type":"ParameterDescription","ParameterOIDs":[20]}
+B {"Type":"RowDescription","Fields":[{"Name":"id","TableOID":16385,"TableAttributeNumber":1,"DataTypeOID":23,"DataTypeSize":4,"TypeModifier":-1,"Format":0}]}
+B {"Type":"ReadyForQuery","TxStatus":"I"}
+F {"Type":"Bind","DestinationPortal":"","PreparedStatement":"","ParameterFormatCodes":null,"Parameters":[{"text":"7"}],"ResultFormatCodes":[1]}
+F {"Type":"Execute","Portal":"","MaxRows":0}
+F {"Type":"Sync"}
+B {"Type":"BindComplete"}
+B {"Type":"DataRow","Values":[{"binary":"00000001"}]}
+B {"Type":"DataRow","Values":[{"binary":"00000002"}]}
+B {"Type":"DataRow","Values":[{"binary":"00000003"}]}
+B {"Type":"CommandComplete","CommandTag":"SELECT 3"}
+B {"Type":"ReadyForQuery","TxStatus":"I"}
+F {"Type":"Terminate"}
