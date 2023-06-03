@@ -56,6 +56,7 @@ func NewDBWithConfig(t testing.TB, url string, cfg Config) (*sql.DB, *Snap) {
 
 // NewSnap will create snap
 func NewSnap(t testing.TB, postgreURL string) *Snap {
+	t.Helper()
 	return NewSnapWithConfig(t, postgreURL, Config{
 		ForceWrite:  os.Getenv("PGSNAP_FORCE_WRITE") == "true",
 		Debug:       os.Getenv("PGSNAP_DEBUG") == "true",
@@ -113,6 +114,7 @@ func NewSnapWithConfig(t testing.TB, url string, cfg Config) *Snap {
 }
 
 func (s *Snap) runProxy(t testing.TB, url string, script *script, cfg Config) {
+	t.Helper()
 	s.proxy = newProxy(t, url, script, s.l, cfg.Debug)
 	s.proxy.run()
 }

@@ -37,6 +37,7 @@ func newProxy(t testing.TB, dsn string, script *script, l net.Listener, isDebug 
 }
 
 func (s *proxy) run() {
+	s.t.Helper()
 	outFilename := s.script.getFilename()
 
 	out, err := os.Create(outFilename)
@@ -71,6 +72,7 @@ func (s *proxy) finish() {
 func (s *proxy) acceptConnForProxy(db *pgx.Conn, out io.Writer) {
 	conn, err := s.l.Accept()
 	if err != nil {
+		log.Println("server: cannot accept connection:", err)
 		s.t.Errorf("server: cannot accept connection: %v", err)
 		return
 	}
