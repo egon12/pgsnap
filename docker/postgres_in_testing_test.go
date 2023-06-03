@@ -1,4 +1,4 @@
-package docker_test
+package docker
 
 import (
 	"context"
@@ -6,20 +6,17 @@ import (
 	"testing"
 
 	"github.com/egon12/pgsnap"
-	"github.com/egon12/pgsnap/docker"
 	"github.com/jackc/pgx/v5"
 	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 )
 
-var addr = "postgres://postgres@127.0.0.1:15432/?sslmode=disable"
-
-func TestMain(m *testing.M) {
-	docker.RunPostgreInM(m)
-}
-
 func TestSnap_runScript_pq(t *testing.T) {
-	addr = docker.GetAddr()
+	addr, finish, err := RunPostgreInT(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer finish()
 	db, s := pgsnap.NewDB(t, addr)
 	defer s.Finish()
 
@@ -27,7 +24,11 @@ func TestSnap_runScript_pq(t *testing.T) {
 }
 
 func TestSnap_runScript_pgx(t *testing.T) {
-	addr = docker.GetAddr()
+	addr, finish, err := RunPostgreInT(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer finish()
 	s := pgsnap.NewSnap(t, addr)
 	defer s.Finish()
 
@@ -39,7 +40,11 @@ func TestSnap_runProxy_pq(t *testing.T) {
 		t.Skip("skip need docker test")
 	}
 
-	addr = docker.GetAddr()
+	addr, finish, err := RunPostgreInT(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer finish()
 	db, s := pgsnap.NewDBWithConfig(t, addr, pgsnap.Config{ForceWrite: true})
 	defer db.Close()
 	defer s.Finish()
@@ -52,7 +57,8 @@ func TestSnap_runProxy_pgx(t *testing.T) {
 		t.Skip("skip need docker test")
 	}
 
-	addr = docker.GetAddr()
+	addr, finish, _ := RunPostgreInT(t)
+	defer finish()
 	s := pgsnap.NewSnapWithForceWrite(t, addr, true)
 	defer s.Finish()
 
@@ -63,7 +69,12 @@ func TestSnap_runEmptyScript(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Need dockertest")
 	}
-	addr = docker.GetAddr()
+
+	addr, finish, err := RunPostgreInT(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer finish()
 	db, s := pgsnap.NewDB(t, addr)
 	defer s.Finish()
 	defer db.Close()

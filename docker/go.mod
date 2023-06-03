@@ -1,4 +1,4 @@
-module github.com/egon12/pgsnap/dockertest
+module github.com/egon12/pgsnap/docker
 
 go 1.19
 

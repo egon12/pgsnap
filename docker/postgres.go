@@ -48,6 +48,9 @@ type (
 
 		// PostgresVersion is the version of postgres to use
 		PostgresVersion string
+
+		// ContainerNameSuffix is the suffix to add to the container name
+		ContainerNameSuffix string
 	}
 
 	postgreInDocker struct {
@@ -65,7 +68,7 @@ func NewPostgreInDocker(cfg PostgresConfig) (PostgreInDocker, error) {
 
 	p.pool, err = dockertest.NewPool(cfg.DockerEndpoint)
 	if err != nil {
-		return p, fmt.Errorf("cannot connect to docker endpoint (%s): %w", cfg.DockerEndpoint, err)
+		return p, fmt.Errorf("cannot connect to docker endpoint (%s) %w", cfg.DockerEndpoint, err)
 	}
 
 	option := p.generatePostgreOption(cfg)
@@ -73,7 +76,7 @@ func NewPostgreInDocker(cfg PostgresConfig) (PostgreInDocker, error) {
 		cfg.AutoRemove = true
 	})
 	if err != nil {
-		return p, fmt.Errorf("cannot run container: %w", err)
+		return p, fmt.Errorf("cannot run container (%s) %w", option.Name, err)
 	}
 
 	if p.isDebug {
@@ -189,7 +192,11 @@ func (p *postgreInDocker) generatePostgreOption(cfg PostgresConfig) *dockertest.
 		Repository: "postgres",
 		Env:        []string{"POSTGRES_HOST_AUTH_METHOD=trust"},
 		Mounts:     []string{mount},
-		Name:       "pgsnap_test",
+		Name:       p.getContainerName(cfg),
 		Tag:        cfg.PostgresVersion,
 	}
+}
+
+func (p *postgreInDocker) getContainerName(cfg PostgresConfig) string {
+	return "pgsnap_test" + cfg.ContainerNameSuffix
 }
