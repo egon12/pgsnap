@@ -5,6 +5,8 @@ import (
 	"log"
 	"os"
 	"testing"
+
+	"github.com/egon12/pgsnap"
 )
 
 var addrInM string
@@ -46,4 +48,23 @@ func RunPostgreInT(t *testing.T) (string, func() error, error) {
 		ContainerNameSuffix: t.Name(),
 	})
 	return p.GetAddr(), func() error { return p.Finish() }, err
+}
+
+func NewSnapWithDocker(t *testing.T) (*pgsnap.Snap, error) {
+	t.Helper()
+
+	var addr string
+	var finish func() error
+	var err error
+
+	if !pgsnap.IsSnapshotExists(t) {
+		addr, finish, err = RunPostgreInT(t)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	snap := pgsnap.NewSnap(t, addr)
+	snap.AddFinishFunc(finish)
+	return snap, nil
 }
