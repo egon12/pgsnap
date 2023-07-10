@@ -21,6 +21,8 @@ type Snap struct {
 
 	proxy  *proxy  // will be fill if using proxy
 	server *server // will be fill if using fake server
+
+	finishFuncs []func() error
 }
 
 type Config struct {
@@ -146,6 +148,19 @@ func (s *Snap) Finish() {
 	if s.server != nil {
 		s.server.Wait()
 	}
+
+	for _, f := range s.finishFuncs {
+		err := f()
+		if err != nil {
+			s.t.Error(err)
+		}
+	}
+}
+
+// AddFinishFunc will add function that will be called when
+// Finish() is called. It used by docker to remove container
+func (s *Snap) AddFinishFunc(f func() error) {
+	s.finishFuncs = append(s.finishFuncs, f)
 }
 
 // Addr will return proxy / fake postgres address in form of
