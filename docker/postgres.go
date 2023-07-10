@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ory/dockertest/v3"
+	dockertest "github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 )
 
@@ -168,15 +168,13 @@ func (p *postgreInDocker) WaitUntilReady() error {
 }
 
 func (p *postgreInDocker) generatePostgreOption(cfg PostgresConfig) *dockertest.RunOptions {
-	if cfg.MigrationPath == "" {
-		cfg.MigrationPath = "."
-	}
+	migrationPath := p.getMigrationPath(cfg)
 
 	if p.isDebug {
-		log.Println("use migration path in:", cfg.MigrationPath)
+		log.Println("use migration path in:", migrationPath)
 	}
 
-	sqlMigrationPath, err := filepath.Abs(cfg.MigrationPath)
+	sqlMigrationPath, err := filepath.Abs(migrationPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -195,6 +193,18 @@ func (p *postgreInDocker) generatePostgreOption(cfg PostgresConfig) *dockertest.
 		Name:       p.getContainerName(cfg),
 		Tag:        cfg.PostgresVersion,
 	}
+}
+
+func (p *postgreInDocker) getMigrationPath(cfg PostgresConfig) string {
+	if cfg.MigrationPath != "" {
+		return cfg.MigrationPath
+	}
+
+	if migrationPath != "" {
+		return migrationPath
+	}
+
+	return "."
 }
 
 func (p *postgreInDocker) getContainerName(cfg PostgresConfig) string {

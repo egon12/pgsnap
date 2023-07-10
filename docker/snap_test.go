@@ -15,6 +15,7 @@ import (
 var addr = "postgres://postgres@127.0.0.1:15432/?sslmode=disable"
 
 func TestMain(m *testing.M) {
+	docker.SetMigrationPath("./sqlschema/")
 	docker.RunPostgreInM(m)
 }
 
