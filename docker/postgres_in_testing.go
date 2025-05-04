@@ -71,7 +71,7 @@ func NewSnapWithDocker(t *testing.T, options ...Options) (*pgsnap.Snap, error) {
 
 		p, err := NewPostgreInDocker(cfg.PostgresConfig)
 		if err != nil {
-			t.Fatalf("docker failed: %v", err)
+			return nil, err
 		}
 		addr = p.GetAddr()
 		finish = p.Finish
