@@ -10,9 +10,9 @@ import (
 
 func TestFailedCausedByWrongSQL(t *testing.T) {
 	snap := NewPgSnapDocker(
-		t, 
-		WithMigrationPath("./wrong_schema"), 
-		WithDebug(),
+		t,
+		WithMigrationPath("./wrong_schema"),
+		//WithDebug(),
 	)
 	defer snap.Finish()
 
