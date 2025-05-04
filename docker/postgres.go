@@ -151,7 +151,7 @@ func (p *postgreInDocker) WaitUntilReady() error {
 			}
 
 			if !container.State.Running {
-				return fmt.Errorf("container: %s\n%s", &container.State, p.logs)
+				return fmt.Errorf("container not yet running: %s", &container.State)
 			}
 		}
 
