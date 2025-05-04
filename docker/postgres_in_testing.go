@@ -38,7 +38,7 @@ func RunPostgreInM(m *testing.M) {
 	os.Exit(code)
 }
 
-func RunPostgreInT(t *testing.T) (string, func() error, error) {
+func RunPostgreInT(t *testing.T, options ...Options) (string, func() error, error) {
 	if testing.Short() {
 		t.Skip("skip need docker test")
 	}
@@ -47,24 +47,50 @@ func RunPostgreInT(t *testing.T) (string, func() error, error) {
 		DebugMode:           false,
 		ContainerNameSuffix: t.Name(),
 	})
-	return p.GetAddr(), func() error { return p.Finish() }, err
+	return p.GetAddr(), p.Finish, err
 }
 
-func NewSnapWithDocker(t *testing.T) (*pgsnap.Snap, error) {
+func NewSnapWithDocker(t *testing.T, options ...Options) (*pgsnap.Snap, error) {
 	t.Helper()
 
 	var addr string
 	var finish func() error
-	var err error
 
-	if !pgsnap.IsSnapshotExists(t) {
-		addr, finish, err = RunPostgreInT(t)
+	var cfg Config
+	cfg.ContainerNameSuffix = t.Name()
+	cfg.KeepContainer = true
+
+	for _, o := range options {
+		o(&cfg)
+	}
+
+	if cfg.ForceWrite || !pgsnap.IsSnapshotExists(t) {
+		if testing.Short() {
+			t.Skip("skip need docker test")
+		}
+
+		p, err := NewPostgreInDocker(cfg.PostgresConfig)
 		if err != nil {
 			return nil, err
 		}
+		addr = p.GetAddr()
+		finish = p.Finish
 	}
 
 	snap := pgsnap.NewSnap(t, addr)
-	snap.AddFinishFunc(finish)
+
+	if finish != nil {
+		snap.AddFinishFunc(finish)
+	}
+
 	return snap, nil
+}
+
+func NewPgSnapDocker(t *testing.T, options ...Options) *pgsnap.Snap {
+	snap, err := NewSnapWithDocker(t, options...)
+	if err != nil {
+		t.Fatal(err)
+		return nil
+	}
+	return snap
 }

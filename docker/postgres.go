@@ -8,13 +8,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/cenkalti/backoff/v4"
 	dockertest "github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 )
 
 const addrTmpl = "postgres://postgres@127.0.0.1:%s/?sslmode=disable"
-
-const isDebug = true
 
 type (
 
@@ -31,26 +30,6 @@ type (
 
 		// WaitUntilReady will wait until the container is ready to accept connections
 		WaitUntilReady() error
-	}
-
-	PostgresConfig struct {
-		// DockerEndpoint is the endpoint to connect to docker
-		DockerEndpoint string
-
-		// MigrationPath is the path to the sql migration files
-		MigrationPath string
-
-		// DebugMode will print the logs of the container
-		DebugMode bool
-
-		// ExplicitWait is the flag to enable the explicit wait
-		ExplicitWait bool
-
-		// PostgresVersion is the version of postgres to use
-		PostgresVersion string
-
-		// ContainerNameSuffix is the suffix to add to the container name
-		ContainerNameSuffix string
 	}
 
 	postgreInDocker struct {
@@ -72,11 +51,21 @@ func NewPostgreInDocker(cfg PostgresConfig) (PostgreInDocker, error) {
 	}
 
 	option := p.generatePostgreOption(cfg)
-	p.resource, err = p.pool.RunWithOptions(option, func(cfg *docker.HostConfig) {
-		cfg.AutoRemove = true
+	p.resource, err = p.pool.RunWithOptions(option, func(dcfg *docker.HostConfig) {
+		dcfg.AutoRemove = !cfg.KeepContainer
 	})
 	if err != nil {
-		return p, fmt.Errorf("cannot run container (%s) %w", option.Name, err)
+		// TODO when are the best thing to remove some container
+		resource, ok := p.pool.ContainerByName(option.Name)
+		if !ok {
+			return p, fmt.Errorf("run (%s) failed: %w", option.Name, err)
+		}
+
+		if resource.Container.State.Running {
+			return p, fmt.Errorf("run (%s) failed: %w\ntry run:\n```\ndocker stop %s\n```\n", option.Name, err, option.Name)
+		}
+
+		return p, fmt.Errorf("run (%s) failed: %w\ntry run\n```\ndocker rm %s\n```\n", option.Name, err, option.Name)
 	}
 
 	if p.isDebug {
@@ -106,7 +95,7 @@ func NewPostgreInDocker(cfg PostgresConfig) (PostgreInDocker, error) {
 		}
 		err = p.WaitUntilReady()
 		if err != nil {
-			return p, fmt.Errorf("cannot wait until ready: %w", err)
+			return p, fmt.Errorf("waiting aborted: %w", err)
 		}
 	}
 
@@ -144,6 +133,28 @@ func (p *postgreInDocker) WaitUntilReady() error {
 	err := p.pool.Retry(func() error {
 		retryNum++
 
+		container, err := p.pool.Client.InspectContainer(p.resource.Container.ID)
+		if err != nil {
+			if p.isDebug {
+				log.Printf("could not inspect container")
+			}
+		}
+
+		if err == nil && container != nil {
+			if p.isDebug {
+				log.Printf("container state: %s\n", &container.State)
+			}
+
+			if !container.State.Running && !container.State.FinishedAt.IsZero() {
+				err := fmt.Errorf("container dead: docker logs:\n %s", p.logs)
+				return &backoff.PermanentError{Err: err}
+			}
+
+			if !container.State.Running {
+				return fmt.Errorf("container not yet running: %s", &container.State)
+			}
+		}
+
 		db, err := sql.Open("postgres", p.addr)
 		if err != nil {
 			if p.isDebug {
@@ -161,7 +172,7 @@ func (p *postgreInDocker) WaitUntilReady() error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("Could not connect to database after %d times: %s", retryNum, err)
+		return fmt.Errorf("trial aborted after %d times: %w", retryNum, err)
 	}
 
 	return nil
