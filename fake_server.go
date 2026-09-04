@@ -17,6 +17,9 @@ type (
 		done    chan<- struct{}
 		isDebug bool
 		wg      sync.WaitGroup
+
+		connMu sync.Mutex
+		conn   net.Conn
 	}
 )
 
@@ -62,6 +65,7 @@ func (s *server) acceptConnForScript(script *pgmock.Script) {
 		return
 	}
 	defer conn.Close()
+	s.setConn(conn)
 	s.debugLogf("server: accepted connection")
 
 	be := pgproto3.NewBackend(pgproto3.NewChunkReader(conn), conn)
@@ -102,6 +106,24 @@ func (s *server) sendError(be *pgproto3.Backend, postgresError error) {
 
 	// ignore the error
 	_ = be.Send(&pgproto3.ReadyForQuery{TxStatus: 'I'})
+}
+
+func (s *server) setConn(conn net.Conn) {
+	s.connMu.Lock()
+	defer s.connMu.Unlock()
+	s.conn = conn
+}
+
+// Close forcibly closes the active connection to unblock any goroutine
+// (including the test's own) that is blocked on a read/write to it. Used
+// when the test exceeds its timeout, since a mismatched script otherwise
+// leaves the client waiting for a response that will never come.
+func (s *server) Close() {
+	s.connMu.Lock()
+	defer s.connMu.Unlock()
+	if s.conn != nil {
+		_ = s.conn.Close()
+	}
 }
 
 func (s *server) debugLogf(format string, args ...interface{}) {

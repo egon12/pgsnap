@@ -3,6 +3,7 @@ package pgsnap
 import (
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -44,6 +45,15 @@ func Test_error_case(t *testing.T) {
 	})
 }
 
+// setFailAfter must not call (*testing.T).FailNow from its own goroutine:
+// FailNow only unwinds the goroutine that calls it (via runtime.Goexit), not
+// the goroutine actually running the test. If the test goroutine is blocked
+// on a DB call to the fake server/proxy, FailNow from setFailAfter's
+// goroutine would never unblock it, leaving the test hanging until go test's
+// own (much longer) global timeout. So on timeout it must instead mark the
+// test failed with Errorf (safe from any goroutine) and force-close the
+// underlying listener so a blocked test goroutine gets unblocked and the
+// test can finish on its own.
 func Test_if_not_accept_should_throw_timeout(t *testing.T) {
 	tb := newFakeTB(t)
 
@@ -54,13 +64,15 @@ func Test_if_not_accept_should_throw_timeout(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	assert.True(t, tb.FailNowCalled.Load())
+	assert.False(t, tb.FailNowCalled.Load())
+	assert.NotEmpty(t, tb.errorMessages())
 }
 
 type fakeTB struct {
 	testing.TB
 	ErrorMessages []string
 	FailNowCalled *atomic.Bool
+	mu            sync.Mutex
 }
 
 func newFakeTB(t testing.TB) *fakeTB {
@@ -71,13 +83,23 @@ func newFakeTB(t testing.TB) *fakeTB {
 }
 
 func (f *fakeTB) Error(args ...interface{}) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.ErrorMessages = append(f.ErrorMessages, fmt.Sprintln(args...))
 }
 
 func (f *fakeTB) Errorf(format string, args ...interface{}) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.ErrorMessages = append(f.ErrorMessages, fmt.Sprintf(format, args...))
 }
 
 func (f *fakeTB) FailNow() {
 	f.FailNowCalled.Store(true)
+}
+
+func (f *fakeTB) errorMessages() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.ErrorMessages
 }

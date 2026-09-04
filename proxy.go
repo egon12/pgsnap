@@ -23,6 +23,10 @@ type proxy struct {
 	isDebug   bool
 	done      atomic.Bool
 	doneMutex sync.Mutex
+
+	connMu sync.Mutex
+	conn   net.Conn
+	db     *pgx.Conn
 }
 
 func newProxy(t testing.TB, dsn string, script *script, l net.Listener, isDebug bool) *proxy {
@@ -79,6 +83,11 @@ func (s *proxy) acceptConnForProxy(db *pgx.Conn, out io.Writer) {
 	if s.isDebug {
 		s.t.Log("accepting connection")
 	}
+
+	s.connMu.Lock()
+	s.conn = conn
+	s.db = db
+	s.connMu.Unlock()
 
 	be := s.prepareBackend(conn)
 
@@ -184,6 +193,21 @@ func (s *proxy) streamFEtoBE(fe *pgproto3.Frontend, be *pgproto3.Backend, out io
 			s.debugLogf("pgsnap: FE exit loop")
 			return
 		}
+	}
+}
+
+// Close forcibly closes the active client and real-db connections to unblock
+// any goroutine (including the test's own) that is blocked on a read/write.
+// Used when the test exceeds its timeout, since a mismatched script otherwise
+// leaves the client waiting for a response that will never come.
+func (s *proxy) Close() {
+	s.connMu.Lock()
+	defer s.connMu.Unlock()
+	if s.conn != nil {
+		_ = s.conn.Close()
+	}
+	if s.db != nil {
+		_ = s.db.Close(context.TODO())
 	}
 }
 

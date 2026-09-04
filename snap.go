@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"sync"
 	"testing"
 	"time"
 )
@@ -19,6 +20,7 @@ type Snap struct {
 	l       net.Listener
 	isDebug bool
 
+	compMu sync.Mutex
 	proxy  *proxy  // will be fill if using proxy
 	server *server // will be fill if using fake server
 
@@ -89,9 +91,9 @@ func NewSnapWithConfig(t testing.TB, url string, cfg Config) *Snap {
 		isDebug: cfg.Debug,
 	}
 
-	s.setFailAfter(cfg.TestTimeout)
-
 	s.listen()
+
+	s.setFailAfter(cfg.TestTimeout)
 
 	script := newScript(t)
 
@@ -110,19 +112,37 @@ func NewSnapWithConfig(t testing.TB, url string, cfg Config) *Snap {
 		s.t.Fatalf("can't open file \"%s\": %v", script.getFilename(), err)
 	}
 
-	s.server = newServer(s.l, s.done, s.t, s.isDebug)
-	s.server.Run(pgxScript)
+	srv := newServer(s.l, s.done, s.t, s.isDebug)
+	s.compMu.Lock()
+	s.server = srv
+	s.compMu.Unlock()
+	srv.Run(pgxScript)
 
 	return s
 }
 
 func (s *Snap) runProxy(t testing.TB, url string, script *script, cfg Config) {
 	t.Helper()
-	s.proxy = newProxy(t, url, script, s.l, cfg.Debug)
-	s.proxy.run()
+	p := newProxy(t, url, script, s.l, cfg.Debug)
+	s.compMu.Lock()
+	s.proxy = p
+	s.compMu.Unlock()
+	p.run()
 }
 
-// setFaileAfter will call (*testing.T).Fatalf after timeout
+// setFailAfter marks the test failed and force-closes any open connection
+// after timeout, so a mismatched/hanging script doesn't block the test
+// forever.
+//
+// This runs in its own goroutine, so it must not call (*testing.T).FailNow
+// (or Fatal/Fatalf/Skip*): those call runtime.Goexit, which only unwinds
+// this goroutine, not the goroutine actually running the test. If the test
+// goroutine is blocked on a DB call to the fake server/proxy, FailNow here
+// would never unblock it, and the test would hang until go test's own
+// (much longer) global timeout instead of this one. So instead we mark the
+// test failed with Errorf (safe from any goroutine) and force-close the
+// underlying connections so the test goroutine's blocked read/write
+// returns an error and the test can finish on its own.
 func (s *Snap) setFailAfter(timeout time.Duration) {
 	start := time.Now()
 	go func() {
@@ -130,7 +150,19 @@ func (s *Snap) setFailAfter(timeout time.Duration) {
 		case <-time.After(timeout):
 			log.Printf("pgsnap timeout after %v, start at %v, end at %v", timeout, start, time.Now())
 			s.t.Errorf("pgsnap timeout after %v", timeout)
-			s.t.FailNow()
+
+			_ = s.l.Close()
+
+			s.compMu.Lock()
+			p, srv := s.proxy, s.server
+			s.compMu.Unlock()
+
+			if p != nil {
+				p.Close()
+			}
+			if srv != nil {
+				srv.Close()
+			}
 		case <-s.done:
 		}
 	}()
@@ -140,13 +172,17 @@ func (s *Snap) Finish() {
 	// ignore the error
 	_ = s.l.Close()
 
-	if s.proxy != nil {
-		s.proxy.finish()
+	s.compMu.Lock()
+	p, srv := s.proxy, s.server
+	s.compMu.Unlock()
+
+	if p != nil {
+		p.finish()
 		s.done <- struct{}{}
 	}
 
-	if s.server != nil {
-		s.server.Wait()
+	if srv != nil {
+		srv.Wait()
 	}
 
 	for _, f := range s.finishFuncs {
